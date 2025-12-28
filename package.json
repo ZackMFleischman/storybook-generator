@@ -1,0 +1,25 @@
+{
+  "name": "storybook-generator",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm run dev --workspace=@storybook-generator/server",
+    "dev:client": "npm run dev --workspace=@storybook-generator/client",
+    "build": "npm run build --workspaces",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint packages --ext .ts,.tsx"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.0",
+    "concurrently": "^8.2.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  }
+}

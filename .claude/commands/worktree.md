@@ -1,0 +1,2 @@
+Create a new git worktree with a new branch and install things as needed to begin editing and testing. run `npm run serena:index` and then activate the project in this work tree folder.
+Then read ./claude/plans/implementation-plan.md completely and then follow the workflow at the bottom precisely. You'll be implementing part of a plan, and it'll be the next unfinished section, unless otherwise instructed. Afterwards, get my approval, and then merge the branch back into the main branch so it can be used in the original repo and then remove the worktree

@@ -1969,16 +1969,16 @@ This phase proves the simplest possible pipeline by leveraging Gemini's text ren
 
 **Backend**:
 
--   [ ] Express server setup with TypeScript
--   [ ] Filesystem storage adapter (basic)
--   [ ] Gemini 2.5 Flash adapter (basic image generation)
--   [ ] GPT integration for text generation
--   [ ] Basic endpoints: create project, generate outline, generate manuscript, generate pages, export PDF
--   [ ] PDF generation from images (pdf-lib)
+-   [x] Express server setup with TypeScript
+-   [x] Filesystem storage adapter (basic)
+-   [x] Gemini 2.0 Flash adapter (basic image generation)
+-   [x] Claude Opus 4.5 adapter for text generation (using @anthropic-ai/sdk)
+-   [x] Basic endpoints: create project, generate outline, generate manuscript, generate pages, export PDF
+-   [x] PDF generation from images (pdf-lib)
 
 **Frontend**:
 
--   [ ] Basic React + MobX setup
+-   [ ] Basic React + MobX setup (in progress - stores started)
 -   [ ] Simple wizard flow (next/back buttons)
 -   [ ] Topic input page with basic settings
 -   [ ] Outline display (read-only)
