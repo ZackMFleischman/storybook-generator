@@ -22,6 +22,7 @@ import {
   createGenerationRouter,
   createExportRouter,
   createImagesRouter,
+  createDebugRouter,
 } from './routes/index.js';
 
 export function createApp(): Express {
@@ -52,6 +53,9 @@ export function createApp(): Express {
   ));
   app.use('/api/export', createExportRouter(exportService, storage));
   app.use('/api/images', createImagesRouter(storage));
+
+  // Debug routes (for testing)
+  app.use('/api/debug', createDebugRouter());
 
   // Health check
   app.get('/api/health', (req, res) => {

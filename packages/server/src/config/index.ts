@@ -36,7 +36,7 @@ export const config = {
 
   // Default Models
   defaultTextModel: process.env.DEFAULT_TEXT_MODEL ?? 'claude-opus-4-5-20251101',
-  defaultImageModel: process.env.DEFAULT_IMAGE_MODEL ?? 'gemini-2.0-flash-exp',
+  defaultImageModel: process.env.DEFAULT_IMAGE_MODEL ?? 'gemini-2.5-flash-preview-image-generation',
 };
 
 export function validateConfig(): void {

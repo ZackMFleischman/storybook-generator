@@ -6,7 +6,7 @@ export class GeminiAdapter implements IImageGenerationAdapter {
   private client: GoogleGenAI;
   private modelId: string;
 
-  constructor(apiKey: string, modelId: string = 'gemini-2.0-flash-exp') {
+  constructor(apiKey: string, modelId: string = 'gemini-2.5-flash-preview-image-generation') {
     this.client = new GoogleGenAI({ apiKey });
     this.modelId = modelId;
   }
