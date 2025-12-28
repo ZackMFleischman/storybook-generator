@@ -10,6 +10,8 @@ import {
   ExportPdfRequest,
   ExportResult,
   PageImage,
+  RefineOutlineRequest,
+  RefineManuscriptRequest,
 } from '@storybook-generator/shared';
 
 const API_BASE = '/api';
@@ -75,8 +77,23 @@ export async function generateManuscript(data: GenerateManuscriptRequest): Promi
   });
 }
 
+// Refinement endpoints
+export async function refineOutline(data: RefineOutlineRequest): Promise<Outline> {
+  return request<Outline>('/generate/outline/refine', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function refineManuscript(data: RefineManuscriptRequest): Promise<Manuscript> {
+  return request<Manuscript>('/generate/manuscript/refine', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export async function generateAllPages(data: GenerateAllPagesRequest): Promise<PageImage[]> {
-  return request<PageImage[]>('/generate/pages', {
+  return request<PageImage[]>('/generate/all-pages', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -87,24 +104,24 @@ export async function generatePage(
   pageNumber: number,
   additionalPrompt?: string
 ): Promise<PageImage> {
-  return request<PageImage>('/generate/page', {
+  return request<PageImage>(`/generate/page/${pageNumber}`, {
     method: 'POST',
-    body: JSON.stringify({ projectId, pageNumber, additionalPrompt }),
+    body: JSON.stringify({ projectId, additionalPrompt }),
   });
 }
 
 // Export endpoints
 export async function exportPdf(data: ExportPdfRequest): Promise<ExportResult> {
-  return request<ExportResult>('/export/pdf', {
+  return request<ExportResult>(`/export/${data.projectId}/pdf`, {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export function getExportDownloadUrl(exportId: string): string {
-  return `${API_BASE}/export/${exportId}/download`;
+export function getExportDownloadUrl(projectId: string, exportId: string): string {
+  return `${API_BASE}/export/${projectId}/exports/${exportId}`;
 }
 
-export function getImageUrl(imagePath: string): string {
-  return `${API_BASE}/images/${encodeURIComponent(imagePath)}`;
+export function getImageUrl(projectId: string, category: string, imageId: string): string {
+  return `${API_BASE}/images/${projectId}/${category}/${imageId}`;
 }

@@ -1,10 +1,13 @@
 import { observer } from 'mobx-react-lite';
 import styled from '@emotion/styled';
-import { useProjectStore, useGenerationStore, useUIStore } from '../stores/RootStore';
+import { useProjectStore, useGenerationStore, useUIStore, useEditStore } from '../stores/RootStore';
+import { EditableSection } from './EditableSection';
+import type { ManuscriptPage } from '@storybook-generator/shared';
 
 const Container = styled.div`
   max-width: 900px;
   margin: 0 auto;
+  padding-bottom: 5rem;
 `;
 
 const Header = styled.div`
@@ -31,9 +34,13 @@ const ButtonGroup = styled.div`
   gap: 0.75rem;
 `;
 
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
+const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'warning' }>`
   padding: 0.75rem 1.25rem;
-  background: ${props => props.variant === 'secondary' ? 'transparent' : 'var(--primary-color)'};
+  background: ${props => {
+    if (props.variant === 'secondary') return 'transparent';
+    if (props.variant === 'warning') return 'var(--secondary-color)';
+    return 'var(--primary-color)';
+  }};
   color: ${props => props.variant === 'secondary' ? 'var(--text-secondary)' : 'white'};
   border: ${props => props.variant === 'secondary' ? '1px solid var(--border-color)' : 'none'};
   border-radius: var(--radius-md);
@@ -43,13 +50,27 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: ${props => props.variant === 'secondary' ? 'var(--background-color)' : '#4f46e5'};
+    opacity: 0.9;
   }
 
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
+`;
+
+const OverallFeedbackCard = styled.div`
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+`;
+
+const OverallFeedbackText = styled.p`
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  margin: 0;
 `;
 
 const PageGrid = styled.div`
@@ -173,13 +194,47 @@ const ErrorMessage = styled.div`
   margin-bottom: 1rem;
 `;
 
+const FloatingBar = styled.div`
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface-color);
+  border-top: 1px solid var(--border-color);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+`;
+
+const FeedbackCount = styled.span`
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+`;
+
 export const ManuscriptView = observer(function ManuscriptView() {
   const projectStore = useProjectStore();
   const generationStore = useGenerationStore();
   const uiStore = useUIStore();
+  const editStore = useEditStore();
 
-  const manuscript = projectStore.currentProject?.manuscript;
-  const isLoading = generationStore.isGenerating;
+  const project = projectStore.currentProject;
+  const manuscript = project?.manuscript;
+  const outline = project?.outline;
+  const isLoading = generationStore.isGenerating || editStore.isRefining;
+
+  // Create a map of character IDs to names
+  const characterNames = new Map<string, string>();
+  outline?.characters.forEach((char) => {
+    characterNames.set(char.id, char.name);
+  });
+
+  const getCharacterName = (charId: string): string => {
+    return characterNames.get(charId) || charId;
+  };
 
   if (!manuscript) {
     return (
@@ -196,69 +251,106 @@ export const ManuscriptView = observer(function ManuscriptView() {
     await generationStore.generateIllustrations();
   };
 
+  const handleApplyChanges = async () => {
+    await editStore.applyManuscriptFeedback();
+  };
+
   return (
     <Container>
       <Header>
         <TitleSection>
           <Title>Manuscript</Title>
           <Subtitle>
-            {manuscript.pages.length} pages ready for illustration
+            {manuscript.pages.length} pages ready for illustration. Hover over pages to add feedback.
           </Subtitle>
         </TitleSection>
         <ButtonGroup>
           <Button variant="secondary" onClick={() => uiStore.previousStep()}>
             Back
           </Button>
-          <Button onClick={handleGenerateIllustrations} disabled={isLoading}>
+          <Button onClick={handleGenerateIllustrations} disabled={isLoading || editStore.hasManuscriptFeedback}>
             {isLoading ? 'Generating...' : 'Generate Illustrations'}
           </Button>
         </ButtonGroup>
       </Header>
 
-      {generationStore.error && (
-        <ErrorMessage>{generationStore.error}</ErrorMessage>
+      {(generationStore.error || editStore.refineError) && (
+        <ErrorMessage>{generationStore.error || editStore.refineError}</ErrorMessage>
       )}
 
+      <EditableSection
+        sectionLabel="Overall Manuscript"
+        feedback={editStore.manuscriptFeedback.overall}
+        onFeedbackChange={(f) => editStore.setManuscriptOverallFeedback(f)}
+      >
+        <OverallFeedbackCard>
+          <OverallFeedbackText>
+            Add overall feedback about the manuscript here (tone, pacing, style, etc.)
+          </OverallFeedbackText>
+        </OverallFeedbackCard>
+      </EditableSection>
+
       <PageGrid>
-        {manuscript.pages.map((page) => (
-          <PageCard key={page.pageNumber}>
-            <PageTextSection>
-              <PageNumber>{page.pageNumber}</PageNumber>
-              {page.text ? (
-                <PageText>{page.text}</PageText>
-              ) : (
-                <NoText>No text on this page</NoText>
-              )}
-            </PageTextSection>
-            <PageIllustrationSection>
-              <SectionLabel>Illustration Brief</SectionLabel>
-              <IllustrationDescription>
-                {page.illustrationDescription}
-              </IllustrationDescription>
-              <MetaGrid>
-                <MetaItem>
-                  <MetaLabel>Mood</MetaLabel>
-                  <MetaValue>{page.mood}</MetaValue>
-                </MetaItem>
-                <MetaItem>
-                  <MetaLabel>Action</MetaLabel>
-                  <MetaValue>{page.action}</MetaValue>
-                </MetaItem>
-              </MetaGrid>
-              {page.characters.length > 0 && (
-                <div style={{ marginTop: '0.75rem' }}>
-                  <MetaLabel>Characters</MetaLabel>
-                  <CharacterTags>
-                    {page.characters.map((char) => (
-                      <Tag key={char}>{char}</Tag>
-                    ))}
-                  </CharacterTags>
-                </div>
-              )}
-            </PageIllustrationSection>
-          </PageCard>
+        {manuscript.pages.map((page: ManuscriptPage) => (
+          <EditableSection
+            key={page.pageNumber}
+            sectionLabel={`Page ${page.pageNumber}`}
+            feedback={editStore.manuscriptFeedback.pages.get(page.pageNumber)}
+            onFeedbackChange={(f) => editStore.setPageFeedback(page.pageNumber, f)}
+          >
+            <PageCard>
+              <PageTextSection>
+                <PageNumber>{page.pageNumber}</PageNumber>
+                {page.text ? (
+                  <PageText>{page.text}</PageText>
+                ) : (
+                  <NoText>No text on this page</NoText>
+                )}
+              </PageTextSection>
+              <PageIllustrationSection>
+                <SectionLabel>Illustration Brief</SectionLabel>
+                <IllustrationDescription>
+                  {page.illustrationDescription}
+                </IllustrationDescription>
+                <MetaGrid>
+                  <MetaItem>
+                    <MetaLabel>Mood</MetaLabel>
+                    <MetaValue>{page.mood}</MetaValue>
+                  </MetaItem>
+                  <MetaItem>
+                    <MetaLabel>Action</MetaLabel>
+                    <MetaValue>{page.action}</MetaValue>
+                  </MetaItem>
+                </MetaGrid>
+                {page.characters.length > 0 && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <MetaLabel>Characters</MetaLabel>
+                    <CharacterTags>
+                      {page.characters.map((charId: string) => (
+                        <Tag key={charId}>{getCharacterName(charId)}</Tag>
+                      ))}
+                    </CharacterTags>
+                  </div>
+                )}
+              </PageIllustrationSection>
+            </PageCard>
+          </EditableSection>
         ))}
       </PageGrid>
+
+      {editStore.hasManuscriptFeedback && (
+        <FloatingBar>
+          <FeedbackCount>
+            {editStore.manuscriptFeedbackCount} pending edit{editStore.manuscriptFeedbackCount !== 1 ? 's' : ''}
+          </FeedbackCount>
+          <Button variant="secondary" onClick={() => editStore.clearManuscriptFeedback()}>
+            Clear All
+          </Button>
+          <Button variant="warning" onClick={handleApplyChanges} disabled={isLoading}>
+            {isLoading ? 'Applying...' : 'Apply Changes'}
+          </Button>
+        </FloatingBar>
+      )}
     </Container>
   );
 });

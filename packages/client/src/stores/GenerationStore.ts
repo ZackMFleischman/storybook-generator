@@ -189,7 +189,7 @@ export class GenerationStore {
         this.setSuccess();
       });
 
-      return api.getExportDownloadUrl(result.exportId);
+      return api.getExportDownloadUrl(project.id, result.exportId);
     } catch (error) {
       runInAction(() => {
         this.setError(String(error));

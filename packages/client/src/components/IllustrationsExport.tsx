@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import styled from '@emotion/styled';
 import { useProjectStore, useGenerationStore, useUIStore } from '../stores/RootStore';
 import { getImageUrl } from '../api/client';
+import type { PageImage } from '@storybook-generator/shared';
 
 const Container = styled.div`
   max-width: 1000px;
@@ -262,13 +263,13 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
       <ImageGrid>
         {pageImages
           .slice()
-          .sort((a, b) => a.pageNumber - b.pageNumber)
-          .map((pageImage) => (
+          .sort((a: PageImage, b: PageImage) => a.pageNumber - b.pageNumber)
+          .map((pageImage: PageImage) => (
             <ImageCard key={pageImage.pageNumber}>
               <ImageContainer>
-                {pageImage.imagePath ? (
+                {project ? (
                   <Image
-                    src={getImageUrl(pageImage.imagePath)}
+                    src={getImageUrl(project.id, 'pages', `page-${pageImage.pageNumber}`)}
                     alt={`Page ${pageImage.pageNumber}`}
                   />
                 ) : (

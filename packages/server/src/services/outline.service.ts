@@ -1,7 +1,7 @@
-import { Outline, GenerateOutlineRequest } from '@storybook-generator/shared';
+import { Outline, GenerateOutlineRequest, RefineOutlineRequest } from '@storybook-generator/shared';
 import { ITextGenerationAdapter } from '../adapters/text-generation/index.js';
 import { IStorageAdapter } from '../adapters/storage/index.js';
-import { getOutlineSystemPrompt, getOutlineUserPrompt } from '../prompts/index.js';
+import { getOutlineSystemPrompt, getOutlineUserPrompt, getOutlineRefinePrompt } from '../prompts/index.js';
 
 export class OutlineService {
   constructor(
@@ -36,5 +36,37 @@ export class OutlineService {
     await this.storage.saveProject(project);
 
     return outline;
+  }
+
+  async refineOutline(request: RefineOutlineRequest): Promise<Outline> {
+    const { projectId, feedback } = request;
+
+    // Load project to get existing outline
+    const project = await this.storage.loadProject(projectId);
+
+    if (!project.outline) {
+      throw new Error('No outline exists to refine');
+    }
+
+    const systemPrompt = getOutlineSystemPrompt(
+      project.settings.targetAge,
+      project.settings.targetPageCount,
+      project.settings.toneKeywords
+    );
+
+    const userPrompt = getOutlineRefinePrompt(project.outline, feedback);
+
+    const refinedOutline = await this.textAdapter.generateStructured<Outline>(
+      systemPrompt,
+      userPrompt,
+      { maxTokens: 4096, temperature: 0.7 }
+    );
+
+    // Update project with the refined outline
+    project.outline = refinedOutline;
+    project.updatedAt = new Date().toISOString();
+    await this.storage.saveProject(project);
+
+    return refinedOutline;
   }
 }

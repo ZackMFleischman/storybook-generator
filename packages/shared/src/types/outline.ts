@@ -40,3 +40,18 @@ export interface GenerateOutlineRequest {
   toneKeywords?: string[];
   additionalInstructions?: string;
 }
+
+export interface OutlineFeedback {
+  overall?: string;
+  title?: string;
+  synopsis?: string;
+  theme?: string;
+  setting?: string;
+  characters?: Record<string, string>;
+  plotPoints?: Record<string, string>;
+}
+
+export interface RefineOutlineRequest {
+  projectId: string;
+  feedback: OutlineFeedback;
+}

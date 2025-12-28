@@ -1,4 +1,4 @@
-import { TargetAge } from '@storybook-generator/shared';
+import { TargetAge, Outline, OutlineFeedback } from '@storybook-generator/shared';
 
 export function getOutlineSystemPrompt(targetAge: TargetAge, pageCount: number, toneKeywords: string[]): string {
   const ageDescription = targetAge === '3-5'
@@ -61,4 +61,54 @@ export function getOutlineUserPrompt(topic: string, additionalInstructions?: str
   }
 
   return prompt;
+}
+
+export function getOutlineRefinePrompt(currentOutline: Outline, feedback: OutlineFeedback): string {
+  const feedbackParts: string[] = [];
+
+  if (feedback.overall) {
+    feedbackParts.push(`Overall feedback: ${feedback.overall}`);
+  }
+
+  if (feedback.title) {
+    feedbackParts.push(`Title feedback: ${feedback.title}`);
+  }
+
+  if (feedback.synopsis) {
+    feedbackParts.push(`Synopsis feedback: ${feedback.synopsis}`);
+  }
+
+  if (feedback.theme) {
+    feedbackParts.push(`Theme feedback: ${feedback.theme}`);
+  }
+
+  if (feedback.setting) {
+    feedbackParts.push(`Setting feedback: ${feedback.setting}`);
+  }
+
+  if (feedback.characters && Object.keys(feedback.characters).length > 0) {
+    for (const [charId, charFeedback] of Object.entries(feedback.characters)) {
+      const character = currentOutline.characters.find(c => c.id === charId);
+      const charName = character?.name || charId;
+      feedbackParts.push(`Character "${charName}" feedback: ${charFeedback}`);
+    }
+  }
+
+  if (feedback.plotPoints && Object.keys(feedback.plotPoints).length > 0) {
+    for (const [plotId, plotFeedback] of Object.entries(feedback.plotPoints)) {
+      const plotPoint = currentOutline.plotPoints.find(p => p.id === plotId);
+      const plotTitle = plotPoint?.title || plotId;
+      feedbackParts.push(`Plot point "${plotTitle}" feedback: ${plotFeedback}`);
+    }
+  }
+
+  return `Here is the current outline:
+
+${JSON.stringify(currentOutline, null, 2)}
+
+Please refine this outline based on the following feedback:
+
+${feedbackParts.join('\n\n')}
+
+Respond with the complete refined outline in the same JSON format, incorporating all the requested changes while maintaining the story's coherence. Keep any elements that weren't mentioned in the feedback unchanged unless they need to be adjusted for consistency.`;
 }

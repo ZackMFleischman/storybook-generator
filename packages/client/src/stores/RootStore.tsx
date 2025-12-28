@@ -2,16 +2,19 @@ import { createContext, useContext, ReactNode } from 'react';
 import { ProjectStore } from './ProjectStore';
 import { UIStore } from './UIStore';
 import { GenerationStore } from './GenerationStore';
+import { EditStore } from './EditStore';
 
 export class RootStore {
   projectStore: ProjectStore;
   uiStore: UIStore;
   generationStore: GenerationStore;
+  editStore: EditStore;
 
   constructor() {
     this.projectStore = new ProjectStore(this);
     this.uiStore = new UIStore(this);
     this.generationStore = new GenerationStore(this);
+    this.editStore = new EditStore(this);
   }
 }
 
@@ -44,4 +47,8 @@ export function useUIStore(): UIStore {
 
 export function useGenerationStore(): GenerationStore {
   return useRootStore().generationStore;
+}
+
+export function useEditStore(): EditStore {
+  return useRootStore().editStore;
 }

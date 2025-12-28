@@ -30,3 +30,13 @@ export interface GenerateManuscriptRequest {
   textStyle?: 'rhythmic' | 'narrative' | 'simple';
   additionalGuidance?: string;
 }
+
+export interface ManuscriptFeedback {
+  overall?: string;
+  pages?: Record<number, string>;
+}
+
+export interface RefineManuscriptRequest {
+  projectId: string;
+  feedback: ManuscriptFeedback;
+}

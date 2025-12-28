@@ -1,4 +1,4 @@
-import { Outline, TargetAge } from '@storybook-generator/shared';
+import { Outline, Manuscript, TargetAge, ManuscriptFeedback } from '@storybook-generator/shared';
 
 export function getManuscriptSystemPrompt(
   targetAge: TargetAge,
@@ -82,4 +82,41 @@ ${outline.plotPoints.map(p => `${p.order}. ${p.title}: ${p.description}`).join('
   }
 
   return prompt;
+}
+
+export function getManuscriptRefinePrompt(
+  outline: Outline,
+  currentManuscript: Manuscript,
+  feedback: ManuscriptFeedback
+): string {
+  const feedbackParts: string[] = [];
+
+  if (feedback.overall) {
+    feedbackParts.push(`Overall feedback: ${feedback.overall}`);
+  }
+
+  if (feedback.pages && Object.keys(feedback.pages).length > 0) {
+    for (const [pageNum, pageFeedback] of Object.entries(feedback.pages)) {
+      feedbackParts.push(`Page ${pageNum} feedback: ${pageFeedback}`);
+    }
+  }
+
+  return `Here is the story outline for context:
+
+Title: ${outline.title}
+Synopsis: ${outline.synopsis}
+Theme: ${outline.theme}
+
+Characters:
+${outline.characters.map(c => `- ${c.name} (${c.role}): ${c.description}`).join('\n')}
+
+Here is the current manuscript:
+
+${JSON.stringify(currentManuscript, null, 2)}
+
+Please refine this manuscript based on the following feedback:
+
+${feedbackParts.join('\n\n')}
+
+Respond with the complete refined manuscript in the same JSON format. When refining specific pages, make sure the changes flow naturally with the surrounding pages. Keep pages that weren't mentioned in the feedback unchanged unless they need adjustment for consistency.`;
 }

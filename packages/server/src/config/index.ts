@@ -1,21 +1,26 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// Try multiple .env locations (cwd, monorepo root from source)
-const envPaths = [
-  path.resolve(process.cwd(), '.env'),
-  path.resolve(__dirname, '../../../../.env'),
-];
-
-for (const envPath of envPaths) {
-  if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath });
-    break;
+// Try multiple .env locations (cwd, parent directories)
+function findEnvFile(): string | undefined {
+  // Start from cwd and walk up
+  let dir = process.cwd();
+  for (let i = 0; i < 5; i++) {
+    const envPath = path.join(dir, '.env');
+    if (fs.existsSync(envPath)) {
+      return envPath;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
   }
+  return undefined;
+}
+
+const envPath = findEnvFile();
+if (envPath) {
+  dotenv.config({ path: envPath });
 }
 
 export const config = {

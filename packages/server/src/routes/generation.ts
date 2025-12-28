@@ -4,6 +4,8 @@ import {
   GenerateManuscriptRequest,
   GeneratePageRequest,
   GenerateAllPagesRequest,
+  RefineOutlineRequest,
+  RefineManuscriptRequest,
 } from '@storybook-generator/shared';
 import {
   OutlineService,
@@ -51,6 +53,42 @@ export function createGenerationRouter(
     } catch (error) {
       console.error('Error generating manuscript:', error);
       res.status(500).json({ error: 'Failed to generate manuscript', details: String(error) });
+    }
+  });
+
+  // Refine outline with feedback
+  router.post('/outline/refine', async (req: Request, res: Response) => {
+    try {
+      const request: RefineOutlineRequest = req.body;
+
+      if (!request.projectId || !request.feedback) {
+        res.status(400).json({ error: 'projectId and feedback are required' });
+        return;
+      }
+
+      const outline = await outlineService.refineOutline(request);
+      res.json(outline);
+    } catch (error) {
+      console.error('Error refining outline:', error);
+      res.status(500).json({ error: 'Failed to refine outline', details: String(error) });
+    }
+  });
+
+  // Refine manuscript with feedback
+  router.post('/manuscript/refine', async (req: Request, res: Response) => {
+    try {
+      const request: RefineManuscriptRequest = req.body;
+
+      if (!request.projectId || !request.feedback) {
+        res.status(400).json({ error: 'projectId and feedback are required' });
+        return;
+      }
+
+      const manuscript = await manuscriptService.refineManuscript(request);
+      res.json(manuscript);
+    } catch (error) {
+      console.error('Error refining manuscript:', error);
+      res.status(500).json({ error: 'Failed to refine manuscript', details: String(error) });
     }
   });
 

@@ -1,10 +1,13 @@
 import { observer } from 'mobx-react-lite';
 import styled from '@emotion/styled';
-import { useProjectStore, useGenerationStore, useUIStore } from '../stores/RootStore';
+import { useProjectStore, useGenerationStore, useUIStore, useEditStore } from '../stores/RootStore';
+import { EditableSection } from './EditableSection';
+import type { Character, PlotPoint } from '@storybook-generator/shared';
 
 const Container = styled.div`
   max-width: 800px;
   margin: 0 auto;
+  padding-bottom: 5rem;
 `;
 
 const Header = styled.div`
@@ -31,9 +34,13 @@ const ButtonGroup = styled.div`
   gap: 0.75rem;
 `;
 
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
+const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'warning' }>`
   padding: 0.75rem 1.25rem;
-  background: ${props => props.variant === 'secondary' ? 'transparent' : 'var(--primary-color)'};
+  background: ${props => {
+    if (props.variant === 'secondary') return 'transparent';
+    if (props.variant === 'warning') return 'var(--secondary-color)';
+    return 'var(--primary-color)';
+  }};
   color: ${props => props.variant === 'secondary' ? 'var(--text-secondary)' : 'white'};
   border: ${props => props.variant === 'secondary' ? '1px solid var(--border-color)' : 'none'};
   border-radius: var(--radius-md);
@@ -43,7 +50,7 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
   transition: all 0.2s ease;
 
   &:hover:not(:disabled) {
-    background: ${props => props.variant === 'secondary' ? 'var(--background-color)' : '#4f46e5'};
+    opacity: 0.9;
   }
 
   &:disabled {
@@ -150,24 +157,41 @@ const SettingValue = styled.span`
   color: var(--text-primary);
 `;
 
-const PlotList = styled.ol`
-  padding-left: 1.25rem;
-  margin: 0;
+const PlotList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 `;
 
-const PlotItem = styled.li`
-  margin-bottom: 1rem;
-  color: var(--text-primary);
-  line-height: 1.5;
+const PlotItemCard = styled.div`
+  background: var(--background-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+`;
 
-  &:last-child {
-    margin-bottom: 0;
-  }
+const PlotNumber = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: var(--primary-color);
+  color: white;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
 `;
 
 const PlotTitle = styled.strong`
-  display: block;
-  margin-bottom: 0.25rem;
+  color: var(--text-primary);
+`;
+
+const PlotDescription = styled.p`
+  color: var(--text-secondary);
+  margin: 0.5rem 0 0;
+  line-height: 1.5;
+  font-size: 0.875rem;
 `;
 
 const ErrorMessage = styled.div`
@@ -179,13 +203,35 @@ const ErrorMessage = styled.div`
   margin-bottom: 1rem;
 `;
 
+const FloatingBar = styled.div`
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--surface-color);
+  border-top: 1px solid var(--border-color);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+`;
+
+const FeedbackCount = styled.span`
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+`;
+
 export const OutlineView = observer(function OutlineView() {
   const projectStore = useProjectStore();
   const generationStore = useGenerationStore();
   const uiStore = useUIStore();
+  const editStore = useEditStore();
 
   const outline = projectStore.currentProject?.outline;
-  const isLoading = generationStore.isGenerating;
+  const isLoading = generationStore.isGenerating || editStore.isRefining;
 
   if (!outline) {
     return (
@@ -202,82 +248,129 @@ export const OutlineView = observer(function OutlineView() {
     await generationStore.generateManuscript();
   };
 
+  const handleApplyChanges = async () => {
+    await editStore.applyOutlineFeedback();
+  };
+
   return (
     <Container>
       <Header>
         <TitleSection>
           <Title>Story Outline</Title>
-          <Subtitle>Review your story structure before generating the manuscript</Subtitle>
+          <Subtitle>Review and edit your story structure. Hover over sections to add feedback.</Subtitle>
         </TitleSection>
         <ButtonGroup>
           <Button variant="secondary" onClick={() => uiStore.previousStep()}>
             Back
           </Button>
-          <Button onClick={handleGenerateManuscript} disabled={isLoading}>
+          <Button onClick={handleGenerateManuscript} disabled={isLoading || editStore.hasOutlineFeedback}>
             {isLoading ? 'Generating...' : 'Generate Manuscript'}
           </Button>
         </ButtonGroup>
       </Header>
 
-      {generationStore.error && (
-        <ErrorMessage>{generationStore.error}</ErrorMessage>
+      {(generationStore.error || editStore.refineError) && (
+        <ErrorMessage>{generationStore.error || editStore.refineError}</ErrorMessage>
       )}
 
-      <Card>
-        <StoryTitle>{outline.title}</StoryTitle>
-        {outline.subtitle && <StorySubtitle>{outline.subtitle}</StorySubtitle>}
-        <Synopsis>{outline.synopsis}</Synopsis>
-        <Theme>
-          <Label>Theme: </Label>
-          <span style={{ color: 'var(--text-primary)' }}>{outline.theme}</span>
-        </Theme>
-      </Card>
+      <EditableSection
+        sectionLabel="Story Overview"
+        feedback={editStore.outlineFeedback.overall}
+        onFeedbackChange={(f) => editStore.setOutlineOverallFeedback(f)}
+      >
+        <Card>
+          <StoryTitle>{outline.title}</StoryTitle>
+          {outline.subtitle && <StorySubtitle>{outline.subtitle}</StorySubtitle>}
+          <Synopsis>{outline.synopsis}</Synopsis>
+          <Theme>
+            <Label>Theme: </Label>
+            <span style={{ color: 'var(--text-primary)' }}>{outline.theme}</span>
+          </Theme>
+        </Card>
+      </EditableSection>
 
       <Card>
         <CardTitle>Characters</CardTitle>
         <CharacterGrid>
-          {outline.characters.map((character) => (
-            <CharacterCard key={character.id}>
-              <CharacterName>{character.name}</CharacterName>
-              <CharacterRole>{character.role}</CharacterRole>
-              <CharacterDesc>{character.description}</CharacterDesc>
-            </CharacterCard>
+          {outline.characters.map((character: Character) => (
+            <EditableSection
+              key={character.id}
+              sectionLabel={`Character: ${character.name}`}
+              feedback={editStore.outlineFeedback.characters.get(character.id)}
+              onFeedbackChange={(f) => editStore.setCharacterFeedback(character.id, f)}
+            >
+              <CharacterCard>
+                <CharacterName>{character.name}</CharacterName>
+                <CharacterRole>{character.role}</CharacterRole>
+                <CharacterDesc>{character.description}</CharacterDesc>
+              </CharacterCard>
+            </EditableSection>
           ))}
         </CharacterGrid>
       </Card>
 
-      <Card>
-        <CardTitle>Setting</CardTitle>
-        <SettingContent>
-          <SettingItem>
-            <SettingLabel>Location</SettingLabel>
-            <SettingValue>{outline.setting.location}</SettingValue>
-          </SettingItem>
-          <SettingItem>
-            <SettingLabel>Time</SettingLabel>
-            <SettingValue>{outline.setting.timePeriod}</SettingValue>
-          </SettingItem>
-          <SettingItem>
-            <SettingLabel>Atmosphere</SettingLabel>
-            <SettingValue>{outline.setting.atmosphere}</SettingValue>
-          </SettingItem>
-        </SettingContent>
-      </Card>
+      <EditableSection
+        sectionLabel="Setting"
+        feedback={editStore.outlineFeedback.setting}
+        onFeedbackChange={(f) => editStore.setOutlineSettingFeedback(f)}
+      >
+        <Card>
+          <CardTitle>Setting</CardTitle>
+          <SettingContent>
+            <SettingItem>
+              <SettingLabel>Location</SettingLabel>
+              <SettingValue>{outline.setting.location}</SettingValue>
+            </SettingItem>
+            <SettingItem>
+              <SettingLabel>Time</SettingLabel>
+              <SettingValue>{outline.setting.timePeriod}</SettingValue>
+            </SettingItem>
+            <SettingItem>
+              <SettingLabel>Atmosphere</SettingLabel>
+              <SettingValue>{outline.setting.atmosphere}</SettingValue>
+            </SettingItem>
+          </SettingContent>
+        </Card>
+      </EditableSection>
 
       <Card>
         <CardTitle>Plot Points</CardTitle>
         <PlotList>
           {outline.plotPoints
             .slice()
-            .sort((a, b) => a.order - b.order)
-            .map((point) => (
-              <PlotItem key={point.id}>
-                <PlotTitle>{point.title}</PlotTitle>
-                {point.description}
-              </PlotItem>
+            .sort((a: PlotPoint, b: PlotPoint) => a.order - b.order)
+            .map((point: PlotPoint) => (
+              <EditableSection
+                key={point.id}
+                sectionLabel={`Plot Point: ${point.title}`}
+                feedback={editStore.outlineFeedback.plotPoints.get(point.id)}
+                onFeedbackChange={(f) => editStore.setPlotPointFeedback(point.id, f)}
+              >
+                <PlotItemCard>
+                  <div>
+                    <PlotNumber>{point.order}</PlotNumber>
+                    <PlotTitle>{point.title}</PlotTitle>
+                  </div>
+                  <PlotDescription>{point.description}</PlotDescription>
+                </PlotItemCard>
+              </EditableSection>
             ))}
         </PlotList>
       </Card>
+
+      {editStore.hasOutlineFeedback && (
+        <FloatingBar>
+          <FeedbackCount>
+            {editStore.outlineFeedbackCount} pending edit{editStore.outlineFeedbackCount !== 1 ? 's' : ''}
+          </FeedbackCount>
+          <Button variant="secondary" onClick={() => editStore.clearOutlineFeedback()}>
+            Clear All
+          </Button>
+          <Button variant="warning" onClick={handleApplyChanges} disabled={isLoading}>
+            {isLoading ? 'Applying...' : 'Apply Changes'}
+          </Button>
+        </FloatingBar>
+      )}
     </Container>
   );
 });
