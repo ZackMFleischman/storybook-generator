@@ -73,15 +73,16 @@ export class GenerationStore {
         toneKeywords,
       });
 
-      // Update project name to story title
+      // Update project name to story title and save topic
       if (outline.title) {
-        await api.updateProject(project.id, { name: outline.title });
+        await api.updateProject(project.id, { name: outline.title, topic });
       }
 
       runInAction(() => {
         const newName = outline.title || project.name;
         projectStore.updateCurrentProject({
           name: newName,
+          topic,
           outline,
           settings: {
             ...project.settings,
@@ -144,6 +145,12 @@ export class GenerationStore {
     }
   }
 
+  private updateProgress(current: number, total: number, task: string): void {
+    this.progress = current;
+    this.totalSteps = total;
+    this.currentTask = task;
+  }
+
   async generateIllustrations(): Promise<boolean> {
     const { projectStore, uiStore } = this.rootStore;
     const project = projectStore.currentProject;
@@ -159,13 +166,20 @@ export class GenerationStore {
     }
 
     const totalPages = project.manuscript.pages.length;
-    this.setGenerating('Generating illustrations...', totalPages);
+    this.setGenerating('Starting illustration generation...', totalPages);
 
     try {
-      const pageImages = await api.generateAllPages({
-        projectId: project.id,
-        generationMode: 'sequential',
-      });
+      const pageImages = await api.generateAllPagesWithProgress(
+        {
+          projectId: project.id,
+          generationMode: 'sequential',
+        },
+        (current, total, message) => {
+          runInAction(() => {
+            this.updateProgress(current, total, message);
+          });
+        }
+      );
 
       runInAction(() => {
         projectStore.updateCurrentProject({ pageImages });

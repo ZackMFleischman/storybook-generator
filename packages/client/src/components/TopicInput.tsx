@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import styled from '@emotion/styled';
-import { useGenerationStore, useProjectStore } from '../stores/RootStore';
+import { useGenerationStore, useProjectStore, useUIStore } from '../stores/RootStore';
 import type { TargetAge } from '@storybook-generator/shared';
 
 const Container = styled.div`
@@ -101,13 +101,57 @@ const ErrorMessage = styled.div`
   color: var(--error-color);
 `;
 
+const ButtonRow = styled.div`
+  display: flex;
+  gap: 0.75rem;
+`;
+
+const SecondaryButton = styled.button`
+  padding: 0.875rem 1.5rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--surface-color);
+    border-color: var(--text-secondary);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+`;
+
 export const TopicInput = observer(function TopicInput() {
   const generationStore = useGenerationStore();
   const projectStore = useProjectStore();
+  const uiStore = useUIStore();
+
+  const project = projectStore.currentProject;
+  const hasOutline = project?.outline !== null;
 
   const [topic, setTopic] = useState('');
   const [targetAge, setTargetAge] = useState<TargetAge>('3-5');
   const [pageCount, setPageCount] = useState(12);
+
+  // Populate form from existing project data
+  useEffect(() => {
+    if (project) {
+      if (project.topic) {
+        setTopic(project.topic);
+      }
+      if (project.settings) {
+        setTargetAge(project.settings.targetAge);
+        setPageCount(project.settings.targetPageCount);
+      }
+    }
+  }, [project?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,6 +159,10 @@ export const TopicInput = observer(function TopicInput() {
     if (!topic.trim()) return;
 
     await generationStore.generateOutline(topic, targetAge, pageCount);
+  };
+
+  const handleContinue = () => {
+    uiStore.nextStep();
   };
 
   const isLoading = generationStore.isGenerating || projectStore.isLoading;
@@ -172,9 +220,16 @@ export const TopicInput = observer(function TopicInput() {
           <ErrorMessage>{generationStore.error}</ErrorMessage>
         )}
 
-        <Button type="submit" disabled={isLoading || !topic.trim()}>
-          {isLoading ? 'Generating...' : 'Generate Outline'}
-        </Button>
+        <ButtonRow>
+          <Button type="submit" disabled={isLoading || !topic.trim()}>
+            {isLoading ? 'Generating...' : hasOutline ? 'Regenerate Outline' : 'Generate Outline'}
+          </Button>
+          {hasOutline && (
+            <SecondaryButton type="button" onClick={handleContinue} disabled={isLoading}>
+              Continue to Outline →
+            </SecondaryButton>
+          )}
+        </ButtonRow>
       </Form>
     </Container>
   );

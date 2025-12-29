@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import styled from '@emotion/styled';
 import { useProjectStore, useGenerationStore, useUIStore } from '../stores/RootStore';
 import { getImageUrl } from '../api/client';
+import { PageCard } from './PageCard';
 import type { PageImage } from '@storybook-generator/shared';
 
 const Container = styled.div`
@@ -64,68 +65,6 @@ const PageList = styled.div`
   flex-direction: column;
   gap: 2rem;
   margin-bottom: 2rem;
-`;
-
-const PageCard = styled.div`
-  background: var(--surface-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-`;
-
-const ImageContainer = styled.div`
-  background: var(--background-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-`;
-
-const Image = styled.img`
-  max-width: 100%;
-  height: auto;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-`;
-
-const PlaceholderImage = styled.div`
-  color: var(--text-secondary);
-  text-align: center;
-  padding: 2rem;
-`;
-
-const PageInfo = styled.div`
-  padding: 1.5rem;
-  border-top: 1px solid var(--border-color);
-`;
-
-const PageHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-`;
-
-const PageLabel = styled.div`
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 1rem;
-`;
-
-const PageMeta = styled.div`
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-`;
-
-const PageText = styled.div`
-  font-size: 1.1rem;
-  line-height: 1.6;
-  color: var(--text-primary);
-  background: var(--background-color);
-  padding: 1rem 1.25rem;
-  border-radius: var(--radius-md);
-  border-left: 3px solid var(--primary-color);
-  font-style: italic;
 `;
 
 const EmptyState = styled.div`
@@ -200,7 +139,14 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
   const project = projectStore.currentProject;
   const pageImages = project?.pageImages || [];
   const manuscript = project?.manuscript;
+  const outline = project?.outline;
   const isLoading = generationStore.isGenerating;
+
+  // Create a map of character IDs to names
+  const characterNames = new Map<string, string>();
+  outline?.characters.forEach((char) => {
+    characterNames.set(char.id, char.name);
+  });
 
   const handleGenerateIllustrations = async () => {
     await generationStore.generateIllustrations();
@@ -263,6 +209,9 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
           <Button variant="secondary" onClick={() => uiStore.previousStep()}>
             Back
           </Button>
+          <Button onClick={handleExportPdf} disabled={isLoading}>
+            {isLoading ? 'Creating PDF...' : 'Export PDF'}
+          </Button>
         </ButtonGroup>
       </Header>
 
@@ -285,30 +234,17 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
           .sort((a: PageImage, b: PageImage) => a.pageNumber - b.pageNumber)
           .map((pageImage: PageImage) => {
             const manuscriptPage = manuscript?.pages.find(p => p.pageNumber === pageImage.pageNumber);
+            if (!manuscriptPage) return null;
             return (
-              <PageCard key={pageImage.pageNumber}>
-                <ImageContainer>
-                  {project ? (
-                    <Image
-                      src={getImageUrl(project.id, 'pages', `page-${pageImage.pageNumber}`)}
-                      alt={`Page ${pageImage.pageNumber}`}
-                    />
-                  ) : (
-                    <PlaceholderImage>No image</PlaceholderImage>
-                  )}
-                </ImageContainer>
-                <PageInfo>
-                  <PageHeader>
-                    <PageLabel>Page {pageImage.pageNumber}</PageLabel>
-                    <PageMeta>
-                      {pageImage.hasTextBaked ? 'Text in image' : 'Text overlay'}
-                    </PageMeta>
-                  </PageHeader>
-                  {manuscriptPage?.text && (
-                    <PageText>{manuscriptPage.text}</PageText>
-                  )}
-                </PageInfo>
-              </PageCard>
+              <PageCard
+                key={pageImage.pageNumber}
+                page={manuscriptPage}
+                pageImage={pageImage}
+                imageUrl={project ? getImageUrl(project.id, 'pages', `page-${pageImage.pageNumber}`) : undefined}
+                characterNames={characterNames}
+                showImage={true}
+                showIllustrationBrief={true}
+              />
             );
           })}
       </PageList>

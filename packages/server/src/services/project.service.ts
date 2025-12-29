@@ -16,6 +16,7 @@ export class ProjectService {
     const project: Project = {
       id: uuidv4(),
       name: request.name,
+      topic: request.topic || '',
       createdAt: now,
       updatedAt: now,
       settings: {

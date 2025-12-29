@@ -22,6 +22,7 @@ export interface ProjectSettings {
 export interface Project {
   id: string;
   name: string;
+  topic: string;
   createdAt: string;
   updatedAt: string;
   settings: ProjectSettings;
@@ -44,6 +45,7 @@ export interface ProjectSummary {
 
 export interface CreateProjectRequest {
   name: string;
+  topic?: string;
   settings?: Partial<ProjectSettings>;
 }
 

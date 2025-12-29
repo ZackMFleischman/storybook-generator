@@ -101,7 +101,7 @@ const StepperContainer = styled.div`
   align-items: center;
 `;
 
-const Step = styled.div<{ active: boolean; completed: boolean }>`
+const Step = styled.div<{ active: boolean; completed: boolean; clickable: boolean }>`
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -112,6 +112,11 @@ const Step = styled.div<{ active: boolean; completed: boolean }>`
   font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.2s ease;
+  cursor: ${props => props.clickable ? 'pointer' : 'default'};
+
+  &:hover {
+    opacity: ${props => props.clickable ? 0.85 : 1};
+  }
 `;
 
 const StepNumber = styled.span`
@@ -173,6 +178,33 @@ const Spinner = styled.div`
   }
 `;
 
+const ProgressContainer = styled.div`
+  margin-top: 1rem;
+  width: 100%;
+`;
+
+const ProgressBar = styled.div`
+  width: 100%;
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div<{ percent: number }>`
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 4px;
+  width: ${props => props.percent}%;
+  transition: width 0.3s ease;
+`;
+
+const ProgressText = styled.div`
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+`;
+
 const steps: { key: WizardStep; label: string }[] = [
   { key: 'topic', label: 'Topic' },
   { key: 'outline', label: 'Outline' },
@@ -218,13 +250,39 @@ export const App = observer(function App() {
       case 'topic':
         return project.outline !== null;
       case 'outline':
-        return project.manuscript !== null;
+        return project.outline !== null;
       case 'manuscript':
-        return project.pageImages.length > 0;
+        return project.manuscript !== null;
       case 'illustrations':
-        return false;
+        return project.manuscript !== null && project.pageImages.length >= project.manuscript.pages.length;
       default:
         return false;
+    }
+  };
+
+  const isStepClickable = (stepKey: WizardStep): boolean => {
+    const project = projectStore.currentProject;
+    if (!project) return false;
+    if (stepKey === uiStore.currentStep) return false; // Already on this step
+
+    // Can always go back to topic
+    if (stepKey === 'topic') return true;
+
+    // Can go to outline if it exists
+    if (stepKey === 'outline') return project.outline !== null;
+
+    // Can go to manuscript if it exists
+    if (stepKey === 'manuscript') return project.manuscript !== null;
+
+    // Can go to illustrations if they exist
+    if (stepKey === 'illustrations') return project.pageImages.length > 0;
+
+    return false;
+  };
+
+  const handleStepClick = (stepKey: WizardStep) => {
+    if (isStepClickable(stepKey)) {
+      uiStore.setStep(stepKey);
     }
   };
 
@@ -251,6 +309,8 @@ export const App = observer(function App() {
                 <Step
                   active={uiStore.currentStep === step.key}
                   completed={getStepCompleted(step.key)}
+                  clickable={isStepClickable(step.key)}
+                  onClick={() => handleStepClick(step.key)}
                 >
                   <StepNumber>{index + 1}</StepNumber>
                   {step.label}
@@ -283,6 +343,18 @@ export const App = observer(function App() {
             <p style={{ margin: 0, color: 'var(--text-primary)' }}>
               {generationStore.currentTask}
             </p>
+            {generationStore.totalSteps > 1 && (
+              <ProgressContainer>
+                <ProgressBar>
+                  <ProgressFill
+                    percent={(generationStore.progress / generationStore.totalSteps) * 100}
+                  />
+                </ProgressBar>
+                <ProgressText>
+                  {generationStore.progress} of {generationStore.totalSteps} complete
+                </ProgressText>
+              </ProgressContainer>
+            )}
           </LoadingCard>
         </LoadingOverlay>
       )}

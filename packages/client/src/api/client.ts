@@ -13,6 +13,7 @@ import {
   RefineOutlineRequest,
   RefineManuscriptRequest,
 } from '@storybook-generator/shared';
+import { fetchWithProgress } from './sse';
 
 const API_BASE = '/api';
 
@@ -97,6 +98,13 @@ export async function generateAllPages(data: GenerateAllPagesRequest): Promise<P
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+export async function generateAllPagesWithProgress(
+  data: GenerateAllPagesRequest,
+  onProgress: (current: number, total: number, message: string) => void
+): Promise<PageImage[]> {
+  return fetchWithProgress<PageImage[]>('/generate/all-pages', data, { onProgress });
 }
 
 export async function generatePage(

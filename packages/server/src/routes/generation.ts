@@ -114,7 +114,7 @@ export function createGenerationRouter(
     }
   });
 
-  // Generate all page illustrations
+  // Generate all page illustrations (with SSE progress)
   router.post('/all-pages', async (req: Request, res: Response) => {
     try {
       const request: GenerateAllPagesRequest = req.body;
@@ -124,15 +124,37 @@ export function createGenerationRouter(
         return;
       }
 
-      // For now, we don't stream progress - just return when done
-      const pageImages = await illustrationService.generateAllPages(request, (current, total, message) => {
-        console.log(`[${current}/${total}] ${message}`);
-      });
+      // Check if client wants SSE progress updates
+      const wantsProgress = req.headers.accept === 'text/event-stream';
 
-      res.json(pageImages);
+      if (wantsProgress) {
+        // Set up SSE
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders();
+
+        const pageImages = await illustrationService.generateAllPages(request, (current, total, message) => {
+          res.write(`data: ${JSON.stringify({ type: 'progress', current, total, message })}\n\n`);
+        });
+
+        res.write(`data: ${JSON.stringify({ type: 'complete', data: pageImages })}\n\n`);
+        res.end();
+      } else {
+        // Standard JSON response
+        const pageImages = await illustrationService.generateAllPages(request, (current, total, message) => {
+          console.log(`[${current}/${total}] ${message}`);
+        });
+        res.json(pageImages);
+      }
     } catch (error) {
       console.error('Error generating all pages:', error);
-      res.status(500).json({ error: 'Failed to generate pages', details: String(error) });
+      if (req.headers.accept === 'text/event-stream') {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: String(error) })}\n\n`);
+        res.end();
+      } else {
+        res.status(500).json({ error: 'Failed to generate pages', details: String(error) });
+      }
     }
   });
 
