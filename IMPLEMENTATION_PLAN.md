@@ -49,7 +49,489 @@ Added methods that update and immediately save to server:
 
 ---
 
-## Feature 2: Illustration Feedback & Iteration
+## Feature 2: Gemini Session & Image Reference Architecture
+
+### Current State
+- `gemini.adapter.ts` uses simple `generateContent()` calls with text-only prompts
+- No support for multi-turn chat sessions
+- No support for passing reference images (despite `supportsReferences: true`)
+- Each image generation is independent - no visual continuity between pages
+- Character consistency relies entirely on text descriptions
+
+### Why This Matters
+The Gemini API documentation strongly recommends multi-turn chat for storybook generation:
+- Maintains style and character memory across pages
+- Reduces prompt repetition
+- Dramatically improves visual consistency
+- Enables image-to-image refinement
+
+### Proposed Changes
+
+#### 2.1 Extend Image Generation Interface
+**File:** `packages/server/src/adapters/image-generation/image-generation.interface.ts`
+
+Add session-based generation methods:
+
+```typescript
+interface IImageGenerationAdapter {
+  // EXISTING
+  generateImage(prompt: string, options: ImageGenOptions): Promise<GeneratedImage>;
+  getModelInfo(): ImageModelInfo;
+  getSupportedAspectRatios(): AspectRatio[];
+
+  // NEW: Session-based generation
+  createSession(projectId: string): Promise<string>;  // Returns sessionId
+  generateWithReferences(
+    sessionId: string,
+    prompt: string,
+    referenceImages: ReferenceImage[],
+    options: ImageGenOptions
+  ): Promise<GeneratedImage>;
+  closeSession(sessionId: string): void;
+}
+```
+
+#### 2.2 Add Reference Image Types & Generation Metadata
+**File:** `packages/shared/src/types/generation.ts`
+
+```typescript
+export interface ReferenceImage {
+  type: 'character' | 'previous-page' | 'style';
+  label: string;        // e.g., "Luna the rabbit", "Page 3"
+  buffer: Buffer;       // Image data (not stored, used at generation time)
+  mimeType: string;     // e.g., "image/png"
+}
+
+export interface SessionInfo {
+  sessionId: string;
+  projectId: string;
+  createdAt: string;
+  lastUsed: string;
+}
+
+// NEW: Detailed metadata stored with each generated image for introspection
+export interface GenerationMetadata {
+  sessionId: string;
+  prompt: string;                    // Full prompt sent to Gemini
+  referenceImages: ReferenceImageInfo[];  // What refs were passed (without buffer)
+  modelUsed: string;
+  generatedAt: string;
+  generationTimeMs: number;
+  aspectRatio: AspectRatio;
+  messageIndex?: number;             // Position in chat session (1 = first, etc.)
+}
+
+// Reference info without the actual buffer (for storage/display)
+export interface ReferenceImageInfo {
+  type: 'character' | 'previous-page' | 'style';
+  label: string;
+  sourcePath?: string;               // Path to the reference image file
+}
+```
+
+#### 2.3 Update PageImage to Include Generation Metadata
+**File:** `packages/shared/src/types/generation.ts`
+
+Update PageImage to store the full generation context:
+
+```typescript
+export interface PageImage {
+  pageNumber: number;
+  imagePath: string;
+  hasTextBaked: boolean;
+  bakedText?: string;
+  prompt: string;
+  generatedAt: string;
+  modelUsed: string;
+  aspectRatio: AspectRatio;
+  imageType?: 'page' | 'cover' | 'back-cover';
+
+  // NEW: Full generation metadata for introspection
+  generationMetadata?: GenerationMetadata;
+}
+```
+
+#### 2.4 Implement Session Support in Gemini Adapter
+**File:** `packages/server/src/adapters/image-generation/gemini.adapter.ts`
+
+Major refactor to support sessions:
+
+```typescript
+export class GeminiAdapter implements IImageGenerationAdapter {
+  private client: GoogleGenAI;
+  private modelId: string;
+  private sessions: Map<string, Chat> = new Map();  // NEW: Session storage
+
+  // NEW: Create a chat session for a project
+  async createSession(projectId: string): Promise<string> {
+    const sessionId = `session-${projectId}-${Date.now()}`;
+
+    const chat = this.client.chats.create({
+      model: this.modelId,
+      config: {
+        responseModalities: [Modality.TEXT, Modality.IMAGE],
+      },
+    });
+
+    this.sessions.set(sessionId, chat);
+    return sessionId;
+  }
+
+  // NEW: Generate image with reference images in context
+  async generateWithReferences(
+    sessionId: string,
+    prompt: string,
+    referenceImages: ReferenceImage[],
+    options: ImageGenOptions
+  ): Promise<GeneratedImage> {
+    const chat = this.sessions.get(sessionId);
+    if (!chat) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    // Build multi-part content with text and images
+    const parts: Part[] = [
+      { text: prompt }
+    ];
+
+    // Add reference images as inline data
+    for (const ref of referenceImages) {
+      parts.push({
+        text: `[Reference: ${ref.label}]`
+      });
+      parts.push({
+        inlineData: {
+          mimeType: ref.mimeType,
+          data: ref.buffer.toString('base64'),
+        }
+      });
+    }
+
+    const response = await chat.sendMessage({ message: parts });
+
+    // Extract image from response (same as existing logic)
+    const part = response.candidates?.[0]?.content?.parts?.find(
+      p => 'inlineData' in p
+    );
+
+    if (!part || !('inlineData' in part) || !part.inlineData) {
+      throw new Error('No image generated in response');
+    }
+
+    return {
+      buffer: Buffer.from(part.inlineData.data!, 'base64'),
+      mimeType: part.inlineData.mimeType || 'image/png',
+      metadata: {
+        model: this.modelId,
+        aspectRatio: options.aspectRatio,
+        generationTime: 0,
+      },
+    };
+  }
+
+  // NEW: Clean up session
+  closeSession(sessionId: string): void {
+    this.sessions.delete(sessionId);
+  }
+
+  // EXISTING: Keep for simple single-image generation
+  async generateImage(prompt: string, options: ImageGenOptions): Promise<GeneratedImage> {
+    // ... existing implementation unchanged ...
+  }
+}
+```
+
+#### 2.5 Update Illustration Service for Sequential Generation
+**File:** `packages/server/src/services/illustration.service.ts`
+
+Change from parallel to sequential generation with context:
+
+```typescript
+class IllustrationService {
+  async generateAllPages(
+    projectId: string,
+    manuscript: Manuscript,
+    outline: Outline,
+    settings: ProjectSettings,
+    characterImages?: CharacterImage[]  // NEW: Pass character refs
+  ): Promise<PageImage[]> {
+    const results: PageImage[] = [];
+
+    // Create session for this generation run
+    const sessionId = await this.imageAdapter.createSession(projectId);
+
+    try {
+      // Load character reference images
+      const charRefs = await this.loadCharacterReferences(projectId, characterImages);
+
+      // Generate pages SEQUENTIALLY (not parallel)
+      for (const page of manuscript.pages) {
+        // Build reference images array
+        const references: ReferenceImage[] = [...charRefs];
+
+        // Add previous page as reference (if exists)
+        if (results.length > 0) {
+          const prevPage = results[results.length - 1];
+          const prevBuffer = await this.storage.loadImage(prevPage.imagePath);
+          references.push({
+            type: 'previous-page',
+            label: `Page ${prevPage.pageNumber}`,
+            buffer: prevBuffer,
+            mimeType: 'image/png',
+          });
+        }
+
+        // Limit to 3 references max (Gemini recommendation)
+        const limitedRefs = references.slice(0, 3);
+
+        const prompt = getIllustrationPrompt({
+          page,
+          characters: outline.characters,
+          setting: outline.setting,
+          targetAge: settings.targetAge,
+          artStyleKeywords: settings.artStyleKeywords,
+        });
+
+        const result = await this.imageAdapter.generateWithReferences(
+          sessionId,
+          prompt,
+          limitedRefs,
+          { aspectRatio: settings.aspectRatio }
+        );
+
+        // Save image and create PageImage record
+        const imagePath = await this.storage.saveImage(
+          projectId,
+          'pages',
+          `page-${page.pageNumber}`,
+          result.buffer
+        );
+
+        results.push({
+          pageNumber: page.pageNumber,
+          imagePath,
+          hasTextBaked: false,
+          prompt,
+          generatedAt: new Date().toISOString(),
+          modelUsed: this.imageAdapter.getModelInfo().id,
+          aspectRatio: settings.aspectRatio,
+          imageType: 'page',
+        });
+      }
+
+      return results;
+    } finally {
+      // Clean up session
+      this.imageAdapter.closeSession(sessionId);
+    }
+  }
+
+  private async loadCharacterReferences(
+    projectId: string,
+    characterImages?: CharacterImage[]
+  ): Promise<ReferenceImage[]> {
+    if (!characterImages || characterImages.length === 0) {
+      return [];
+    }
+
+    const refs: ReferenceImage[] = [];
+
+    // Load up to 2 main character images
+    for (const charImg of characterImages.slice(0, 2)) {
+      const buffer = await this.storage.loadImage(charImg.imagePath);
+      refs.push({
+        type: 'character',
+        label: charImg.characterId,  // Will be enhanced with name later
+        buffer,
+        mimeType: 'image/png',
+      });
+    }
+
+    return refs;
+  }
+}
+```
+
+#### 2.6 Update Cover Generation to Use Sessions
+**File:** `packages/server/src/services/illustration.service.ts`
+
+Covers can share session with pages for style consistency:
+
+```typescript
+async generateAllWithCovers(
+  projectId: string,
+  manuscript: Manuscript,
+  outline: Outline,
+  settings: ProjectSettings,
+  characterImages?: CharacterImage[]
+): Promise<{
+  cover: PageImage;
+  pages: PageImage[];
+  backCover: PageImage;
+}> {
+  const sessionId = await this.imageAdapter.createSession(projectId);
+
+  try {
+    const charRefs = await this.loadCharacterReferences(projectId, characterImages);
+
+    // 1. Generate front cover FIRST (establishes style)
+    const cover = await this.generateCoverWithSession(
+      sessionId, projectId, outline, settings, charRefs
+    );
+
+    // 2. Generate pages sequentially
+    const pages = await this.generatePagesWithSession(
+      sessionId, projectId, manuscript, outline, settings, charRefs, cover
+    );
+
+    // 3. Generate back cover last
+    const backCover = await this.generateBackCoverWithSession(
+      sessionId, projectId, outline, settings, charRefs
+    );
+
+    return { cover, pages, backCover };
+  } finally {
+    this.imageAdapter.closeSession(sessionId);
+  }
+}
+```
+
+#### 2.7 Add Generation Introspection UI Component
+**File:** `packages/client/src/components/GenerationInfoModal.tsx` (NEW)
+
+Add an info button to each illustration that shows exactly what inputs generated it:
+
+```typescript
+interface GenerationInfoModalProps {
+  pageImage: PageImage;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const GenerationInfoModal: React.FC<GenerationInfoModalProps> = ({
+  pageImage,
+  isOpen,
+  onClose
+}) => {
+  const metadata = pageImage.generationMetadata;
+
+  if (!metadata) {
+    return <Modal>No generation metadata available</Modal>;
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <ModalHeader>Generation Details</ModalHeader>
+      <ModalBody>
+        <Section title="Session">
+          <InfoRow label="Session ID" value={metadata.sessionId} />
+          <InfoRow label="Message #" value={metadata.messageIndex || 'N/A'} />
+        </Section>
+
+        <Section title="Model">
+          <InfoRow label="Model" value={metadata.modelUsed} />
+          <InfoRow label="Aspect Ratio" value={metadata.aspectRatio} />
+          <InfoRow label="Generation Time" value={`${metadata.generationTimeMs}ms`} />
+        </Section>
+
+        <Section title="Reference Images">
+          {metadata.referenceImages.length === 0 ? (
+            <EmptyState>No reference images used</EmptyState>
+          ) : (
+            metadata.referenceImages.map((ref, i) => (
+              <ReferenceCard key={i}>
+                <Tag>{ref.type}</Tag>
+                <Label>{ref.label}</Label>
+                {ref.sourcePath && <Thumbnail src={ref.sourcePath} />}
+              </ReferenceCard>
+            ))
+          )}
+        </Section>
+
+        <Section title="Prompt">
+          <PromptDisplay>{metadata.prompt}</PromptDisplay>
+        </Section>
+      </ModalBody>
+    </Modal>
+  );
+};
+```
+
+**UI Integration in IllustrationsExport.tsx:**
+
+Each image card gets an info button:
+
+```
+┌─────────────────────────────────────┐
+│     PAGE 3                    [ℹ️] [Edit] │
+│     [Image]                              │
+│     Text: "Luna hopped through..."       │
+│     Prompt: "A small gray rabbit..."     │
+└─────────────────────────────────────┘
+         │
+         ▼ (click info icon)
+┌─────────────────────────────────────┐
+│ Generation Details              [×] │
+├─────────────────────────────────────┤
+│ SESSION                             │
+│   Session ID: session-abc-12345     │
+│   Message #: 4 (of 8)               │
+│                                     │
+│ MODEL                               │
+│   Model: gemini-2.5-flash           │
+│   Aspect Ratio: 3:4                 │
+│   Generation Time: 3420ms           │
+│                                     │
+│ REFERENCE IMAGES                    │
+│   ┌────┐ ┌────┐                     │
+│   │char│ │prev│                     │
+│   │Luna│ │pg 2│                     │
+│   └────┘ └────┘                     │
+│                                     │
+│ PROMPT                              │
+│ ┌─────────────────────────────────┐ │
+│ │ Create a children's book        │ │
+│ │ illustration showing Luna...    │ │
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+```
+
+### Implementation Order
+
+1. Add `ReferenceImage`, `GenerationMetadata`, `ReferenceImageInfo` types to shared package
+2. Update `PageImage` to include optional `generationMetadata` field
+3. Extend `IImageGenerationAdapter` interface with session methods
+4. Implement session methods in `GeminiAdapter`
+5. Add `loadImage` method to storage adapter (if not exists)
+6. Refactor `IllustrationService.generateAllPages()` to sequential + populate metadata
+7. Update cover generation to use sessions
+8. Create `GenerationInfoModal.tsx` component
+9. Add info button to `IllustrationsExport.tsx` for each image
+10. Test end-to-end with a full book generation
+
+### Success Criteria
+
+- [ ] Sessions can be created and stored in memory
+- [ ] Reference images are correctly encoded as base64 inline data
+- [ ] Pages generate sequentially, each receiving previous page as context
+- [ ] Character references are passed to each page generation
+- [ ] Sessions are properly cleaned up after generation
+- [ ] Fallback works if session methods fail (use existing `generateImage`)
+- [ ] GenerationMetadata is populated and stored with each PageImage
+- [ ] Info modal shows session ID, message index, references, and full prompt
+
+### Testing Notes
+
+- Generate a 4-page book and verify character appearance is consistent across pages
+- Compare results with and without session-based generation
+- Monitor memory usage with multiple active sessions
+- Test session cleanup on errors/timeouts
+- Click info icon on each page and verify metadata displays correctly
+- Verify reference image thumbnails load in the modal
+
+---
+
+## Feature 3: Illustration Feedback & Iteration
 
 ### Current State
 - `IllustrationsExport.tsx` is read-only
@@ -307,7 +789,7 @@ export interface IllustrationRefinementResult {
 
 ---
 
-## Feature 3: Art Style & Character Reference Images
+## Feature 4: Art Style & Character Reference Images
 
 ### Current State
 - `artStyleKeywords` exist in ProjectSettings but are not configurable in UI
@@ -316,7 +798,7 @@ export interface IllustrationRefinementResult {
 
 ### Proposed Changes
 
-#### 3.1 Add Art Style Selection to TopicInput
+#### 4.1 Add Art Style Selection to TopicInput
 **File:** `packages/client/src/components/TopicInput.tsx`
 
 Add art style configuration to the initial page:
@@ -364,7 +846,7 @@ const ART_STYLE_PRESETS = {
 };
 ```
 
-#### 3.2 Update Outline Generation to Create Character Images
+#### 4.2 Update Outline Generation to Create Character Images
 **File:** `packages/server/src/services/outline.service.ts`
 
 After generating the outline, automatically generate character reference images:
@@ -419,7 +901,7 @@ private async generateCharacterReferences(
 }
 ```
 
-#### 3.3 Add Character Reference Prompt Generator
+#### 4.3 Add Character Reference Prompt Generator
 **File:** `packages/server/src/prompts/illustration.prompts.ts`
 
 Add new function:
@@ -458,7 +940,7 @@ DO NOT include:
 }
 ```
 
-#### 3.4 Add Character Image Types
+#### 4.4 Add Character Image Types
 **File:** `packages/shared/src/types/outline.ts`
 
 Add new type:
@@ -487,7 +969,7 @@ export interface Character {
 }
 ```
 
-#### 3.5 Update Project Type
+#### 4.5 Update Project Type
 **File:** `packages/shared/src/types/project.ts`
 
 Add character images to Project:
@@ -509,7 +991,7 @@ export interface Project {
 }
 ```
 
-#### 3.6 Update OutlineView to Display Character Images
+#### 4.6 Update OutlineView to Display Character Images
 **File:** `packages/client/src/components/OutlineView.tsx`
 
 Update the Characters section to show reference images:
@@ -542,7 +1024,7 @@ Update the Characters section to show reference images:
 3. Add "Regenerate" button that opens feedback modal
 4. On regenerate, call new API endpoint
 
-#### 3.7 Add Character Image Regeneration
+#### 4.7 Add Character Image Regeneration
 **File:** `packages/server/src/services/outline.service.ts`
 
 Add regeneration method:
@@ -597,7 +1079,7 @@ async regenerateCharacterImage(
 }
 ```
 
-#### 3.8 Add Character Image API Endpoint
+#### 4.8 Add Character Image API Endpoint
 **File:** `packages/server/src/routes/generation.ts`
 
 Add new endpoint:
@@ -613,7 +1095,7 @@ Request: {
 Response: CharacterImage
 ```
 
-#### 3.9 Update API Client
+#### 4.9 Update API Client
 **File:** `packages/client/src/api/client.ts`
 
 Add new function:
@@ -626,7 +1108,7 @@ export async function regenerateCharacterImage(data: {
 }): Promise<CharacterImage>;
 ```
 
-#### 3.10 Update Illustration Generation to Use Character References
+#### 4.10 Update Illustration Generation to Use Character References
 **File:** `packages/server/src/prompts/illustration.prompts.ts`
 
 Update `getIllustrationPrompt` to reference character images:
@@ -671,23 +1153,32 @@ Ensure each character matches their reference image exactly in terms of:
 4. ~~Update ManuscriptView to use direct editing~~
 5. ~~Test manual editing workflow~~
 
-### Phase 2: Illustration Feedback (Medium Complexity)
+### Phase 2: Gemini Session & Image Reference Architecture (Foundation)
+1. Add `ReferenceImage` and `SessionInfo` types to shared package
+2. Extend `IImageGenerationAdapter` interface with session methods
+3. Implement session methods in `GeminiAdapter` (createSession, generateWithReferences, closeSession)
+4. Add `loadImage` method to storage adapter (if not exists)
+5. Refactor `IllustrationService.generateAllPages()` to sequential with context
+6. Update cover generation to use sessions
+7. Test end-to-end with a full book generation
+
+### Phase 3: Illustration Feedback & Iteration (Medium Complexity)
 1. Add IllustrationFeedback to EditStore
 2. Add illustration refinement types to shared package
-3. Add illustration refinement service methods
+3. Add illustration refinement service methods (using sessions)
 4. Add illustration refinement API endpoints
 5. Update IllustrationsExport component with editing
 6. Add floating action bar to illustrations page
 7. Test single and batch regeneration
 
-### Phase 3: Art Style & Character Images (Highest Complexity)
+### Phase 4: Art Style & Character Images (Highest Complexity)
 1. Add art style selection to TopicInput
 2. Add CharacterImage type and update Project type
 3. Add character reference prompt generator
 4. Update outline service to generate character images
 5. Add character image regeneration endpoint
 6. Update OutlineView to display character images
-7. Update illustration prompts to reference character images
+7. Wire character images into illustration generation (via Phase 2 infrastructure)
 8. Test end-to-end character consistency
 
 ---
@@ -700,12 +1191,27 @@ Ensure each character matches their reference image exactly in terms of:
 - [x] Can use AI suggestions independently (floating bar appears)
 - [x] Both modes available on all editable sections
 
+### Gemini Session & Image Reference Architecture
+- [ ] Sessions can be created and stored in memory
+- [ ] Reference images correctly encoded as base64 inline data
+- [ ] Pages generate sequentially with previous page as context
+- [ ] Session cleanup works properly (manual close + timeout)
+- [ ] Fallback to non-session generation if session fails
+- [ ] Character consistency improved across pages (visual comparison)
+- [ ] Memory usage acceptable with multiple sessions
+- [ ] GenerationMetadata populated and stored with each PageImage
+- [ ] Info icon (ℹ️) appears on each illustration card
+- [ ] Info modal displays session ID and message index
+- [ ] Info modal displays list of reference images used
+- [ ] Info modal displays full prompt text
+- [ ] Reference image thumbnails load correctly in modal
+
 ### Illustration Feedback
 - [ ] Can provide feedback on individual page illustrations
 - [ ] Can provide feedback on front cover
 - [ ] Can provide feedback on back cover
 - [ ] Feedback count shown correctly
-- [ ] Single image regeneration works
+- [ ] Single image regeneration works (uses session for consistency)
 - [ ] Batch regeneration works
 - [ ] Original image replaced on regeneration
 
@@ -716,34 +1222,38 @@ Ensure each character matches their reference image exactly in terms of:
 - [ ] Character images displayed in OutlineView
 - [ ] Single character image regeneration works
 - [ ] Character image regeneration accepts feedback
-- [ ] Page illustrations reference character images
+- [ ] Page illustrations receive character images as references
 
 ---
 
 ## Files to Modify
 
-| File | Changes | Status |
-|------|---------|--------|
-| `client/src/components/EditableSection.tsx` | Add dual-mode editing | DONE |
-| `client/src/components/TopicInput.tsx` | Add art style selection | |
-| `client/src/components/OutlineView.tsx` | Direct editing + character images | DONE (direct editing) |
-| `client/src/components/ManuscriptView.tsx` | Direct editing | DONE |
-| `client/src/components/IllustrationsExport.tsx` | Add feedback/iteration | |
-| `client/src/stores/EditStore.ts` | Add illustration feedback | |
-| `client/src/stores/ProjectStore.ts` | Add direct update methods | DONE |
-| `client/src/api/client.ts` | Add new API functions | |
-| `server/src/routes/generation.ts` | Add new endpoints | |
-| `server/src/services/outline.service.ts` | Add character image generation | |
-| `server/src/services/illustration.service.ts` | Add refinement methods | |
-| `server/src/prompts/illustration.prompts.ts` | Add refinement + character prompts | |
-| `shared/src/types/generation.ts` | Add new types | |
-| `shared/src/types/outline.ts` | Add CharacterImage type | |
-| `shared/src/types/project.ts` | Add characterImages to Project | |
+| File | Changes | Phase | Status |
+|------|---------|-------|--------|
+| `client/src/components/EditableSection.tsx` | Add dual-mode editing | 1 | DONE |
+| `client/src/components/OutlineView.tsx` | Direct editing + character images | 1,4 | DONE (direct editing) |
+| `client/src/components/ManuscriptView.tsx` | Direct editing | 1 | DONE |
+| `client/src/stores/ProjectStore.ts` | Add direct update methods | 1 | DONE |
+| `server/src/adapters/image-generation/image-generation.interface.ts` | Add session methods | 2 | |
+| `server/src/adapters/image-generation/gemini.adapter.ts` | Implement sessions + refs | 2 | |
+| `server/src/adapters/storage/filesystem.adapter.ts` | Add loadImage method | 2 | |
+| `server/src/services/illustration.service.ts` | Sequential generation + sessions | 2,3 | |
+| `shared/src/types/generation.ts` | Add ReferenceImage, SessionInfo, GenerationMetadata | 2 | |
+| `client/src/components/IllustrationsExport.tsx` | Add feedback/iteration + debug info | 3 | |
+| `client/src/stores/EditStore.ts` | Add illustration feedback | 3 | |
+| `client/src/api/client.ts` | Add new API functions | 3,4 | |
+| `server/src/routes/generation.ts` | Add new endpoints | 3,4 | |
+| `client/src/components/TopicInput.tsx` | Add art style selection | 4 | |
+| `server/src/services/outline.service.ts` | Add character image generation | 4 | |
+| `server/src/prompts/illustration.prompts.ts` | Add refinement + character prompts | 3,4 | |
+| `shared/src/types/outline.ts` | Add CharacterImage type | 4 | |
+| `shared/src/types/project.ts` | Add characterImages to Project | 4 | |
 
 ## New Files
 
-| File | Purpose |
-|------|---------|
-| `client/src/components/FloatingActionBar.tsx` | Shared component for pending edits bar |
-| `client/src/components/ArtStyleSelector.tsx` | Art style preset selector component |
-| `client/src/components/CharacterCard.tsx` | Character display with image |
+| File | Purpose | Phase |
+|------|---------|-------|
+| `client/src/components/GenerationInfoModal.tsx` | Modal showing generation metadata (session, refs, prompt) | 2 |
+| `client/src/components/FloatingActionBar.tsx` | Shared component for pending edits bar | 3 |
+| `client/src/components/ArtStyleSelector.tsx` | Art style preset selector component | 4 |
+| `client/src/components/CharacterCard.tsx` | Character display with image | 4 |
