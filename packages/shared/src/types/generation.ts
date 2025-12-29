@@ -131,3 +131,27 @@ export interface ExportResult {
   fileName: string;
   createdAt: string;
 }
+
+// Illustration Feedback Types
+export interface IllustrationFeedback {
+  cover?: string;
+  backCover?: string;
+  pages: Record<number, string>;
+}
+
+export interface RefineIllustrationRequest {
+  projectId: string;
+  target: 'cover' | 'back-cover' | number;
+  feedback: string;
+}
+
+export interface RefineAllIllustrationsRequest {
+  projectId: string;
+  feedback: IllustrationFeedback;
+}
+
+export interface IllustrationRefinementResult {
+  cover?: PageImage;
+  backCover?: PageImage;
+  pages: PageImage[];
+}

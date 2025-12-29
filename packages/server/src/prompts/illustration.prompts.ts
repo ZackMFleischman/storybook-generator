@@ -1,4 +1,4 @@
-import { ManuscriptPage, Character, Setting, TargetAge, Outline } from '@storybook-generator/shared';
+import { ManuscriptPage, Character, Setting, TargetAge, Outline, PageImage } from '@storybook-generator/shared';
 
 export interface IllustrationPromptContext {
   page: ManuscriptPage;
@@ -17,6 +17,16 @@ export interface CoverPromptContext {
   targetAge: TargetAge;
   artStyleKeywords: string[];
   fontStyle: string;
+}
+
+export interface IllustrationRefineContext {
+  originalPrompt: string;
+  illustrationDescription: string;
+  pageText?: string;
+  feedback: string;
+  characters: Character[];
+  artStyleKeywords: string[];
+  imageType: 'page' | 'cover' | 'back-cover';
 }
 
 export function getIllustrationPrompt(context: IllustrationPromptContext): string {
@@ -196,6 +206,66 @@ IMPORTANT BACK COVER DESIGN PRINCIPLES:
 - A quieter, more contemplative scene works well
 - Can show the character from behind, a scene detail, or the setting
 - Professional children's book quality`;
+
+  return prompt;
+}
+
+export function getIllustrationRefinePrompt(context: IllustrationRefineContext): string {
+  const {
+    originalPrompt,
+    illustrationDescription,
+    pageText,
+    feedback,
+    characters,
+    artStyleKeywords,
+    imageType,
+  } = context;
+
+  // Build character descriptions for reference
+  const characterDescriptions = characters.length > 0
+    ? characters.map(c => `- ${c.name}: ${c.physicalDescription}`).join('\n')
+    : 'No specific characters';
+
+  const imageTypeLabel = imageType === 'cover'
+    ? 'FRONT COVER'
+    : imageType === 'back-cover'
+      ? 'BACK COVER'
+      : 'PAGE ILLUSTRATION';
+
+  let prompt = `You are refining an existing children's book ${imageTypeLabel.toLowerCase()}.
+
+=== ORIGINAL ILLUSTRATION DESCRIPTION ===
+${illustrationDescription}
+
+=== ORIGINAL PROMPT USED ===
+${originalPrompt}
+`;
+
+  if (pageText) {
+    prompt += `
+=== TEXT ON THIS PAGE ===
+"${pageText}"
+`;
+  }
+
+  prompt += `
+=== USER FEEDBACK FOR REFINEMENT ===
+${feedback}
+
+=== CHARACTER REFERENCE (MUST MAINTAIN CONSISTENCY) ===
+${characterDescriptions}
+
+=== ART STYLE ===
+${artStyleKeywords.join(', ')}
+
+=== INSTRUCTIONS ===
+Create a refined version of this ${imageTypeLabel.toLowerCase()} that addresses the user's feedback while:
+1. Maintaining the EXACT same art style, color palette, and rendering technique
+2. Keeping ALL characters looking IDENTICAL (same proportions, colors, features, clothing)
+3. Preserving the same level of detail and quality
+4. Addressing the specific changes requested in the feedback
+
+CRITICAL: The refined illustration must look like it belongs in the same book - only change what the user specifically requested.`;
 
   return prompt;
 }

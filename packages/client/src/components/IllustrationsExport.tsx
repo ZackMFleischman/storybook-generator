@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import styled from '@emotion/styled';
-import { useProjectStore, useGenerationStore, useUIStore } from '../stores/RootStore';
+import { useProjectStore, useGenerationStore, useUIStore, useEditStore } from '../stores/RootStore';
 import { getImageUrl } from '../api/client';
 import { PageCard } from './PageCard';
 import { GenerationInfoModal } from './GenerationInfoModal';
@@ -200,13 +200,219 @@ const InfoButton = styled.button`
   }
 `;
 
+const EditButton = styled.button`
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+  }
+`;
+
+const FloatingBar = styled.div`
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+`;
+
+const FloatingBarText = styled.span`
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+`;
+
+const FloatingBarActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+`;
+
+const FloatingButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  background: ${props => props.variant === 'primary' ? 'var(--primary-color)' : 'transparent'};
+  color: ${props => props.variant === 'primary' ? 'white' : 'var(--text-secondary)'};
+  border: 1px solid ${props => props.variant === 'primary' ? 'var(--primary-color)' : 'var(--border-color)'};
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const FeedbackBadge = styled.span`
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  background: var(--secondary-color);
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  z-index: 10;
+`;
+
+const CoverCardWrapper = styled.div<{ hasFeedback?: boolean }>`
+  position: relative;
+  border: 2px solid ${props => props.hasFeedback ? 'var(--secondary-color)' : 'transparent'};
+  border-radius: var(--radius-lg);
+`;
+
+const FeedbackSection = styled.div`
+  padding: 1rem;
+  background: #fffbeb;
+  border-top: 1px solid #fcd34d;
+`;
+
+const FeedbackLabel = styled.label`
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+`;
+
+const FeedbackTextarea = styled.textarea`
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+`;
+
+const FeedbackActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  justify-content: flex-end;
+`;
+
+const SmallButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  background: ${props => {
+    if (props.variant === 'primary') return 'var(--primary-color)';
+    if (props.variant === 'danger') return 'var(--error-color)';
+    return 'transparent';
+  }};
+  color: ${props => (props.variant === 'primary' || props.variant === 'danger') ? 'white' : 'var(--text-secondary)'};
+  border: 1px solid ${props => {
+    if (props.variant === 'primary') return 'var(--primary-color)';
+    if (props.variant === 'danger') return 'var(--error-color)';
+    return 'var(--border-color)';
+  }};
+
+  &:hover:not(:disabled) {
+    opacity: 0.8;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const LoadingOverlay = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+`;
+
+const LoadingCard = styled.div`
+  background: var(--surface-color);
+  border-radius: var(--radius-lg);
+  padding: 2rem 3rem;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+`;
+
+const LoadingTitle = styled.h3`
+  color: var(--text-primary);
+  margin: 0 0 0.5rem;
+`;
+
+const LoadingText = styled.p`
+  color: var(--text-secondary);
+  margin: 0;
+`;
+
+const Spinner = styled.div`
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+`;
+
 export const IllustrationsExport = observer(function IllustrationsExport() {
   const projectStore = useProjectStore();
   const generationStore = useGenerationStore();
   const uiStore = useUIStore();
+  const editStore = useEditStore();
 
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [selectedInfoImage, setSelectedInfoImage] = useState<PageImage | null>(null);
+  const [editingCover, setEditingCover] = useState<'cover' | 'back-cover' | null>(null);
+  const [localCoverFeedback, setLocalCoverFeedback] = useState('');
+  const [localBackCoverFeedback, setLocalBackCoverFeedback] = useState('');
+  // Cache-busting: track refresh timestamps for each image
+  const [imageVersions, setImageVersions] = useState<Record<string, number>>({});
 
   const project = projectStore.currentProject;
   const pageImages = project?.pageImages || [];
@@ -215,12 +421,23 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
   const coverImage = project?.coverImage;
   const backCoverImage = project?.backCoverImage;
   const isLoading = generationStore.isGenerating;
+  const isRefining = editStore.isRefining;
 
   // Create a map of character IDs to names
   const characterNames = new Map<string, string>();
   outline?.characters.forEach((char) => {
     characterNames.set(char.id, char.name);
   });
+
+  // Helper to get cache buster for an image
+  const getImageCacheBuster = (imageKey: string): string => {
+    return String(imageVersions[imageKey] || Date.now());
+  };
+
+  // Helper to refresh an image's cache buster
+  const refreshImageVersion = (imageKey: string) => {
+    setImageVersions(prev => ({ ...prev, [imageKey]: Date.now() }));
+  };
 
   const handleGenerateIllustrations = async () => {
     await generationStore.generateIllustrations();
@@ -237,6 +454,77 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  // Cover feedback handlers
+  const handleSaveCoverFeedback = () => {
+    editStore.setCoverFeedback(localCoverFeedback);
+    setEditingCover(null);
+  };
+
+  const handleSaveBackCoverFeedback = () => {
+    editStore.setBackCoverFeedback(localBackCoverFeedback);
+    setEditingCover(null);
+  };
+
+  const handleClearCoverFeedback = () => {
+    setLocalCoverFeedback('');
+    editStore.setCoverFeedback('');
+    setEditingCover(null);
+  };
+
+  const handleClearBackCoverFeedback = () => {
+    setLocalBackCoverFeedback('');
+    editStore.setBackCoverFeedback('');
+    setEditingCover(null);
+  };
+
+  const handleCancelCoverEdit = () => {
+    setLocalCoverFeedback(editStore.illustrationFeedback.cover || '');
+    setLocalBackCoverFeedback(editStore.illustrationFeedback.backCover || '');
+    setEditingCover(null);
+  };
+
+  // Apply all feedback
+  const handleApplyAllFeedback = async () => {
+    const success = await editStore.applyAllIllustrationFeedback();
+    if (success) {
+      // Refresh all image versions
+      const newVersions: Record<string, number> = {};
+      const now = Date.now();
+      if (editStore.illustrationFeedback.cover) {
+        newVersions['cover'] = now;
+      }
+      if (editStore.illustrationFeedback.backCover) {
+        newVersions['back-cover'] = now;
+      }
+      editStore.illustrationFeedback.pages.forEach((_, pageNumber) => {
+        newVersions[`page-${pageNumber}`] = now;
+      });
+      setImageVersions(prev => ({ ...prev, ...newVersions }));
+    }
+  };
+
+  // Apply single illustration feedback
+  const handleRegeneratePage = async (pageNumber: number) => {
+    const success = await editStore.applySingleIllustrationFeedback(pageNumber);
+    if (success) {
+      refreshImageVersion(`page-${pageNumber}`);
+    }
+  };
+
+  const handleRegenerateCover = async () => {
+    const success = await editStore.applySingleIllustrationFeedback('cover');
+    if (success) {
+      refreshImageVersion('cover');
+    }
+  };
+
+  const handleRegenerateBackCover = async () => {
+    const success = await editStore.applySingleIllustrationFeedback('back-cover');
+    if (success) {
+      refreshImageVersion('back-cover');
     }
   };
 
@@ -306,21 +594,60 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
       {coverImage && project && (
         <CoverSection>
           <CoverLabel>Front Cover</CoverLabel>
-          <CoverCard>
-            <CoverImage
-              src={getImageUrl(project.id, 'cover', 'front')}
-              alt="Front Cover"
-            />
-            <CoverInfo>
-              <CoverTitle>{outline?.title}</CoverTitle>
-              {outline?.subtitle && <CoverText>{outline.subtitle}</CoverText>}
-            </CoverInfo>
-            <CoverActions>
-              <InfoButton onClick={() => setSelectedInfoImage(coverImage)}>
-                Info
-              </InfoButton>
-            </CoverActions>
-          </CoverCard>
+          <CoverCardWrapper hasFeedback={!!editStore.illustrationFeedback.cover}>
+            {editStore.illustrationFeedback.cover && <FeedbackBadge>Feedback pending</FeedbackBadge>}
+            <CoverCard>
+              <CoverImage
+                src={getImageUrl(project.id, 'cover', 'front', getImageCacheBuster('cover'))}
+                alt="Front Cover"
+              />
+              <CoverInfo>
+                <CoverTitle>{outline?.title}</CoverTitle>
+                {outline?.subtitle && <CoverText>{outline.subtitle}</CoverText>}
+              </CoverInfo>
+              <CoverActions>
+                <EditButton onClick={() => {
+                  setLocalCoverFeedback(editStore.illustrationFeedback.cover || '');
+                  setEditingCover(editingCover === 'cover' ? null : 'cover');
+                }}>
+                  {editingCover === 'cover' ? 'Close' : 'Edit'}
+                </EditButton>
+                {editStore.illustrationFeedback.cover && (
+                  <SmallButton
+                    variant="primary"
+                    onClick={handleRegenerateCover}
+                    disabled={isRefining}
+                  >
+                    {isRefining ? 'Regenerating...' : 'Regenerate'}
+                  </SmallButton>
+                )}
+                <InfoButton onClick={() => setSelectedInfoImage(coverImage)}>
+                  Info
+                </InfoButton>
+              </CoverActions>
+              {editingCover === 'cover' && (
+                <FeedbackSection>
+                  <FeedbackLabel>Describe changes for the front cover</FeedbackLabel>
+                  <FeedbackTextarea
+                    value={localCoverFeedback}
+                    onChange={(e) => setLocalCoverFeedback(e.target.value)}
+                    placeholder="e.g., Make the title more prominent, add more sparkles, change the background color..."
+                  />
+                  <FeedbackActions>
+                    {editStore.illustrationFeedback.cover && (
+                      <SmallButton variant="danger" onClick={handleClearCoverFeedback}>
+                        Clear
+                      </SmallButton>
+                    )}
+                    <SmallButton onClick={handleCancelCoverEdit}>Cancel</SmallButton>
+                    <SmallButton variant="primary" onClick={handleSaveCoverFeedback}>
+                      Save Feedback
+                    </SmallButton>
+                  </FeedbackActions>
+                </FeedbackSection>
+              )}
+            </CoverCard>
+          </CoverCardWrapper>
         </CoverSection>
       )}
 
@@ -331,16 +658,21 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
           .map((pageImage: PageImage) => {
             const manuscriptPage = manuscript?.pages.find(p => p.pageNumber === pageImage.pageNumber);
             if (!manuscriptPage) return null;
+            const pageFeedback = editStore.illustrationFeedback.pages.get(pageImage.pageNumber);
             return (
               <PageCard
                 key={pageImage.pageNumber}
                 page={manuscriptPage}
                 pageImage={pageImage}
-                imageUrl={project ? getImageUrl(project.id, 'pages', `page-${pageImage.pageNumber}`) : undefined}
+                imageUrl={project ? getImageUrl(project.id, 'pages', `page-${pageImage.pageNumber}`, getImageCacheBuster(`page-${pageImage.pageNumber}`)) : undefined}
                 characterNames={characterNames}
                 showImage={true}
                 showIllustrationBrief={true}
                 onInfoClick={() => setSelectedInfoImage(pageImage)}
+                feedback={pageFeedback}
+                onFeedbackChange={(feedback) => editStore.setPageIllustrationFeedback(pageImage.pageNumber, feedback)}
+                onRegenerateClick={() => handleRegeneratePage(pageImage.pageNumber)}
+                isRegenerating={isRefining}
               />
             );
           })}
@@ -350,20 +682,59 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
       {backCoverImage && project && (
         <CoverSection>
           <CoverLabel>Back Cover</CoverLabel>
-          <CoverCard>
-            <CoverImage
-              src={getImageUrl(project.id, 'cover', 'back')}
-              alt="Back Cover"
-            />
-            <CoverInfo>
-              <CoverText>{outline?.backCoverBlurb}</CoverText>
-            </CoverInfo>
-            <CoverActions>
-              <InfoButton onClick={() => setSelectedInfoImage(backCoverImage)}>
-                Info
-              </InfoButton>
-            </CoverActions>
-          </CoverCard>
+          <CoverCardWrapper hasFeedback={!!editStore.illustrationFeedback.backCover}>
+            {editStore.illustrationFeedback.backCover && <FeedbackBadge>Feedback pending</FeedbackBadge>}
+            <CoverCard>
+              <CoverImage
+                src={getImageUrl(project.id, 'cover', 'back', getImageCacheBuster('back-cover'))}
+                alt="Back Cover"
+              />
+              <CoverInfo>
+                <CoverText>{outline?.backCoverBlurb}</CoverText>
+              </CoverInfo>
+              <CoverActions>
+                <EditButton onClick={() => {
+                  setLocalBackCoverFeedback(editStore.illustrationFeedback.backCover || '');
+                  setEditingCover(editingCover === 'back-cover' ? null : 'back-cover');
+                }}>
+                  {editingCover === 'back-cover' ? 'Close' : 'Edit'}
+                </EditButton>
+                {editStore.illustrationFeedback.backCover && (
+                  <SmallButton
+                    variant="primary"
+                    onClick={handleRegenerateBackCover}
+                    disabled={isRefining}
+                  >
+                    {isRefining ? 'Regenerating...' : 'Regenerate'}
+                  </SmallButton>
+                )}
+                <InfoButton onClick={() => setSelectedInfoImage(backCoverImage)}>
+                  Info
+                </InfoButton>
+              </CoverActions>
+              {editingCover === 'back-cover' && (
+                <FeedbackSection>
+                  <FeedbackLabel>Describe changes for the back cover</FeedbackLabel>
+                  <FeedbackTextarea
+                    value={localBackCoverFeedback}
+                    onChange={(e) => setLocalBackCoverFeedback(e.target.value)}
+                    placeholder="e.g., Change the background scene, update the blurb styling..."
+                  />
+                  <FeedbackActions>
+                    {editStore.illustrationFeedback.backCover && (
+                      <SmallButton variant="danger" onClick={handleClearBackCoverFeedback}>
+                        Clear
+                      </SmallButton>
+                    )}
+                    <SmallButton onClick={handleCancelCoverEdit}>Cancel</SmallButton>
+                    <SmallButton variant="primary" onClick={handleSaveBackCoverFeedback}>
+                      Save Feedback
+                    </SmallButton>
+                  </FeedbackActions>
+                </FeedbackSection>
+              )}
+            </CoverCard>
+          </CoverCardWrapper>
         </CoverSection>
       )}
 
@@ -379,6 +750,27 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
         </Button>
       </ExportSection>
 
+      {/* Floating Action Bar for bulk feedback */}
+      {editStore.hasIllustrationFeedback && (
+        <FloatingBar>
+          <FloatingBarText>
+            {editStore.illustrationFeedbackCount} illustration{editStore.illustrationFeedbackCount !== 1 ? 's' : ''} with pending feedback
+          </FloatingBarText>
+          <FloatingBarActions>
+            <FloatingButton onClick={() => editStore.clearIllustrationFeedback()}>
+              Clear All
+            </FloatingButton>
+            <FloatingButton
+              variant="primary"
+              onClick={handleApplyAllFeedback}
+              disabled={isRefining}
+            >
+              {isRefining ? 'Applying...' : 'Apply All Changes'}
+            </FloatingButton>
+          </FloatingBarActions>
+        </FloatingBar>
+      )}
+
       {/* Generation Info Modal */}
       {selectedInfoImage && (
         <GenerationInfoModal
@@ -386,6 +778,17 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
           isOpen={true}
           onClose={() => setSelectedInfoImage(null)}
         />
+      )}
+
+      {/* Loading Overlay during refinement */}
+      {isRefining && (
+        <LoadingOverlay>
+          <LoadingCard>
+            <Spinner />
+            <LoadingTitle>Regenerating Illustration</LoadingTitle>
+            <LoadingText>This may take a moment...</LoadingText>
+          </LoadingCard>
+        </LoadingOverlay>
       )}
     </Container>
   );

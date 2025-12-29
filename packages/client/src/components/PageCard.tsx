@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import styled from '@emotion/styled';
 import type { ManuscriptPage, PageImage } from '@storybook-generator/shared';
 
-const Card = styled.div`
+const Card = styled.div<{ hasFeedback?: boolean }>`
   background: var(--surface-color);
-  border: 1px solid var(--border-color);
+  border: 2px solid ${props => props.hasFeedback ? 'var(--secondary-color)' : 'var(--border-color)'};
   border-radius: var(--radius-lg);
   overflow: hidden;
+  position: relative;
 `;
 
 const ImageSection = styled.div`
@@ -169,6 +171,104 @@ const MetaActions = styled.div`
   gap: 0.75rem;
 `;
 
+const FeedbackBadge = styled.span`
+  position: absolute;
+  top: -0.5rem;
+  right: -0.5rem;
+  background: var(--secondary-color);
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.125rem 0.375rem;
+  border-radius: 999px;
+  z-index: 10;
+`;
+
+const FeedbackSection = styled.div`
+  padding: 1rem;
+  background: #fffbeb;
+  border-top: 1px solid #fcd34d;
+`;
+
+const FeedbackLabel = styled.label`
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+`;
+
+const FeedbackTextarea = styled.textarea`
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+`;
+
+const FeedbackActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  justify-content: flex-end;
+`;
+
+const SmallButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  background: ${props => {
+    if (props.variant === 'primary') return 'var(--primary-color)';
+    if (props.variant === 'danger') return 'var(--error-color)';
+    return 'transparent';
+  }};
+  color: ${props => (props.variant === 'primary' || props.variant === 'danger') ? 'white' : 'var(--text-secondary)'};
+  border: 1px solid ${props => {
+    if (props.variant === 'primary') return 'var(--primary-color)';
+    if (props.variant === 'danger') return 'var(--error-color)';
+    return 'var(--border-color)';
+  }};
+
+  &:hover:not(:disabled) {
+    opacity: 0.8;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const EditButton = styled.button`
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &:hover {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+  }
+`;
+
 export interface PageCardProps {
   page: ManuscriptPage;
   pageImage?: PageImage;
@@ -177,6 +277,11 @@ export interface PageCardProps {
   showImage?: boolean;
   showIllustrationBrief?: boolean;
   onInfoClick?: () => void;
+  // Feedback support
+  feedback?: string;
+  onFeedbackChange?: (feedback: string) => void;
+  onRegenerateClick?: () => void;
+  isRegenerating?: boolean;
 }
 
 export function PageCard({
@@ -187,15 +292,45 @@ export function PageCard({
   showImage = false,
   showIllustrationBrief = true,
   onInfoClick,
+  feedback,
+  onFeedbackChange,
+  onRegenerateClick,
+  isRegenerating = false,
 }: PageCardProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [localFeedback, setLocalFeedback] = useState(feedback || '');
+
   const getCharacterName = (charId: string): string => {
     return characterNames.get(charId) || charId;
   };
 
   const hasImage = showImage && (imageUrl || pageImage);
+  const hasFeedback = !!feedback;
+  const canEdit = !!onFeedbackChange;
+
+  const handleSaveFeedback = () => {
+    if (onFeedbackChange) {
+      onFeedbackChange(localFeedback);
+    }
+    setIsEditing(false);
+  };
+
+  const handleClearFeedback = () => {
+    setLocalFeedback('');
+    if (onFeedbackChange) {
+      onFeedbackChange('');
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setLocalFeedback(feedback || '');
+    setIsEditing(false);
+  };
 
   return (
-    <Card>
+    <Card hasFeedback={hasFeedback}>
+      {hasFeedback && <FeedbackBadge>Feedback pending</FeedbackBadge>}
       {hasImage && (
         <ImageSection>
           {imageUrl ? (
@@ -247,6 +382,20 @@ export function PageCard({
         <ImageMetaBar>
           <span>{pageImage.hasTextBaked ? 'Text baked into image' : 'Text overlay mode'}</span>
           <MetaActions>
+            {canEdit && (
+              <EditButton onClick={() => setIsEditing(!isEditing)}>
+                {isEditing ? 'Close' : 'Edit'}
+              </EditButton>
+            )}
+            {onRegenerateClick && hasFeedback && (
+              <SmallButton
+                variant="primary"
+                onClick={onRegenerateClick}
+                disabled={isRegenerating}
+              >
+                {isRegenerating ? 'Regenerating...' : 'Regenerate'}
+              </SmallButton>
+            )}
             {onInfoClick && (
               <InfoButton onClick={onInfoClick}>
                 Info
@@ -255,6 +404,27 @@ export function PageCard({
             <span>{pageImage.modelUsed}</span>
           </MetaActions>
         </ImageMetaBar>
+      )}
+      {isEditing && canEdit && (
+        <FeedbackSection>
+          <FeedbackLabel>Describe changes for this illustration</FeedbackLabel>
+          <FeedbackTextarea
+            value={localFeedback}
+            onChange={(e) => setLocalFeedback(e.target.value)}
+            placeholder="e.g., Make the rabbit look happier, add more flowers in the background, make the colors brighter..."
+          />
+          <FeedbackActions>
+            {hasFeedback && (
+              <SmallButton variant="danger" onClick={handleClearFeedback}>
+                Clear
+              </SmallButton>
+            )}
+            <SmallButton onClick={handleCancel}>Cancel</SmallButton>
+            <SmallButton variant="primary" onClick={handleSaveFeedback}>
+              Save Feedback
+            </SmallButton>
+          </FeedbackActions>
+        </FeedbackSection>
       )}
     </Card>
   );

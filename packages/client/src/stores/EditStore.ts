@@ -20,6 +20,12 @@ export interface ManuscriptFeedback {
   pages: Map<number, string>;
 }
 
+export interface IllustrationFeedbackState {
+  cover?: string;
+  backCover?: string;
+  pages: Map<number, string>;
+}
+
 export class EditStore {
   outlineFeedback: OutlineFeedback = {
     characters: new Map(),
@@ -27,6 +33,10 @@ export class EditStore {
   };
 
   manuscriptFeedback: ManuscriptFeedback = {
+    pages: new Map(),
+  };
+
+  illustrationFeedback: IllustrationFeedbackState = {
     pages: new Map(),
   };
 
@@ -161,6 +171,7 @@ export class EditStore {
   clearAllFeedback(): void {
     this.clearOutlineFeedback();
     this.clearManuscriptFeedback();
+    this.clearIllustrationFeedback();
   }
 
   // Apply feedback and regenerate
@@ -235,6 +246,175 @@ export class EditStore {
       runInAction(() => {
         projectStore.updateCurrentProject({ manuscript });
         this.clearManuscriptFeedback();
+        this.isRefining = false;
+      });
+
+      return true;
+    } catch (error) {
+      runInAction(() => {
+        this.refineError = String(error);
+        this.isRefining = false;
+      });
+      return false;
+    }
+  }
+
+  // Illustration feedback methods
+  setCoverFeedback(feedback: string): void {
+    this.illustrationFeedback.cover = feedback || undefined;
+  }
+
+  setBackCoverFeedback(feedback: string): void {
+    this.illustrationFeedback.backCover = feedback || undefined;
+  }
+
+  setPageIllustrationFeedback(pageNumber: number, feedback: string): void {
+    if (feedback) {
+      this.illustrationFeedback.pages.set(pageNumber, feedback);
+    } else {
+      this.illustrationFeedback.pages.delete(pageNumber);
+    }
+  }
+
+  get hasIllustrationFeedback(): boolean {
+    return !!(
+      this.illustrationFeedback.cover ||
+      this.illustrationFeedback.backCover ||
+      this.illustrationFeedback.pages.size > 0
+    );
+  }
+
+  get illustrationFeedbackCount(): number {
+    let count = 0;
+    if (this.illustrationFeedback.cover) count++;
+    if (this.illustrationFeedback.backCover) count++;
+    count += this.illustrationFeedback.pages.size;
+    return count;
+  }
+
+  clearIllustrationFeedback(): void {
+    this.illustrationFeedback = {
+      pages: new Map(),
+    };
+  }
+
+  // Apply a single illustration refinement
+  async applySingleIllustrationFeedback(target: 'cover' | 'back-cover' | number): Promise<boolean> {
+    const { projectStore } = this.rootStore;
+    const project = projectStore.currentProject;
+
+    if (!project) {
+      return false;
+    }
+
+    let feedback: string | undefined;
+    if (target === 'cover') {
+      feedback = this.illustrationFeedback.cover;
+    } else if (target === 'back-cover') {
+      feedback = this.illustrationFeedback.backCover;
+    } else {
+      feedback = this.illustrationFeedback.pages.get(target);
+    }
+
+    if (!feedback) {
+      return false;
+    }
+
+    this.isRefining = true;
+    this.refineError = null;
+
+    try {
+      const result = await api.refineIllustration({
+        projectId: project.id,
+        target,
+        feedback,
+      });
+
+      runInAction(() => {
+        // Update the project with the new image
+        if (target === 'cover') {
+          projectStore.updateCurrentProject({ coverImage: result });
+          this.illustrationFeedback.cover = undefined;
+        } else if (target === 'back-cover') {
+          projectStore.updateCurrentProject({ backCoverImage: result });
+          this.illustrationFeedback.backCover = undefined;
+        } else {
+          // Update page image in the array
+          const pageImages = [...(project.pageImages || [])];
+          const existingIndex = pageImages.findIndex(p => p.pageNumber === target);
+          if (existingIndex >= 0) {
+            pageImages[existingIndex] = result;
+          } else {
+            pageImages.push(result);
+            pageImages.sort((a, b) => a.pageNumber - b.pageNumber);
+          }
+          projectStore.updateCurrentProject({ pageImages });
+          this.illustrationFeedback.pages.delete(target);
+        }
+        this.isRefining = false;
+      });
+
+      return true;
+    } catch (error) {
+      runInAction(() => {
+        this.refineError = String(error);
+        this.isRefining = false;
+      });
+      return false;
+    }
+  }
+
+  // Apply all illustration feedback at once
+  async applyAllIllustrationFeedback(): Promise<boolean> {
+    const { projectStore } = this.rootStore;
+    const project = projectStore.currentProject;
+
+    if (!project || !this.hasIllustrationFeedback) {
+      return false;
+    }
+
+    this.isRefining = true;
+    this.refineError = null;
+
+    try {
+      const feedback = {
+        cover: this.illustrationFeedback.cover,
+        backCover: this.illustrationFeedback.backCover,
+        pages: Object.fromEntries(this.illustrationFeedback.pages),
+      };
+
+      const result = await api.refineAllIllustrations({
+        projectId: project.id,
+        feedback,
+      });
+
+      runInAction(() => {
+        // Update cover if refined
+        if (result.cover) {
+          projectStore.updateCurrentProject({ coverImage: result.cover });
+        }
+
+        // Update back cover if refined
+        if (result.backCover) {
+          projectStore.updateCurrentProject({ backCoverImage: result.backCover });
+        }
+
+        // Update page images
+        if (result.pages.length > 0) {
+          const pageImages = [...(project.pageImages || [])];
+          for (const newPageImage of result.pages) {
+            const existingIndex = pageImages.findIndex(p => p.pageNumber === newPageImage.pageNumber);
+            if (existingIndex >= 0) {
+              pageImages[existingIndex] = newPageImage;
+            } else {
+              pageImages.push(newPageImage);
+            }
+          }
+          pageImages.sort((a, b) => a.pageNumber - b.pageNumber);
+          projectStore.updateCurrentProject({ pageImages });
+        }
+
+        this.clearIllustrationFeedback();
         this.isRefining = false;
       });
 

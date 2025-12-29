@@ -6,6 +6,8 @@ import {
   GenerateAllPagesRequest,
   RefineOutlineRequest,
   RefineManuscriptRequest,
+  RefineIllustrationRequest,
+  RefineAllIllustrationsRequest,
 } from '@storybook-generator/shared';
 import {
   OutlineService,
@@ -155,6 +157,49 @@ export function createGenerationRouter(
       } else {
         res.status(500).json({ error: 'Failed to generate pages', details: String(error) });
       }
+    }
+  });
+
+  // Refine a single illustration
+  router.post('/illustration/refine', async (req: Request, res: Response) => {
+    try {
+      const request: RefineIllustrationRequest = req.body;
+
+      if (!request.projectId || request.target === undefined || !request.feedback) {
+        res.status(400).json({ error: 'projectId, target, and feedback are required' });
+        return;
+      }
+
+      const pageImage = await illustrationService.refineIllustration(
+        request.projectId,
+        request.target,
+        request.feedback
+      );
+      res.json(pageImage);
+    } catch (error) {
+      console.error('Error refining illustration:', error);
+      res.status(500).json({ error: 'Failed to refine illustration', details: String(error) });
+    }
+  });
+
+  // Refine multiple illustrations
+  router.post('/illustrations/refine', async (req: Request, res: Response) => {
+    try {
+      const request: RefineAllIllustrationsRequest = req.body;
+
+      if (!request.projectId || !request.feedback) {
+        res.status(400).json({ error: 'projectId and feedback are required' });
+        return;
+      }
+
+      const result = await illustrationService.refineAllIllustrations(
+        request.projectId,
+        request.feedback
+      );
+      res.json(result);
+    } catch (error) {
+      console.error('Error refining illustrations:', error);
+      res.status(500).json({ error: 'Failed to refine illustrations', details: String(error) });
     }
   });
 

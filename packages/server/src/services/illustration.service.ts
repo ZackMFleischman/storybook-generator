@@ -1,7 +1,7 @@
-import { PageImage, GeneratePageRequest, GenerateAllPagesRequest, ReferenceImage, ReferenceImageInfo, GenerationMetadata } from '@storybook-generator/shared';
+import { PageImage, GeneratePageRequest, GenerateAllPagesRequest, ReferenceImage, ReferenceImageInfo, GenerationMetadata, IllustrationFeedback, IllustrationRefinementResult } from '@storybook-generator/shared';
 import { IImageGenerationAdapter } from '../adapters/image-generation/index.js';
 import { IStorageAdapter } from '../adapters/storage/index.js';
-import { getIllustrationPrompt, getCoverPrompt, getBackCoverPrompt } from '../prompts/index.js';
+import { getIllustrationPrompt, getCoverPrompt, getBackCoverPrompt, getIllustrationRefinePrompt } from '../prompts/index.js';
 
 export class IllustrationService {
   constructor(
@@ -523,5 +523,179 @@ This illustration must look like it belongs in the same book as the reference im
       imageType: 'back-cover',
       generationMetadata,
     };
+  }
+
+  // Refine a single illustration based on user feedback
+  async refineIllustration(
+    projectId: string,
+    target: 'cover' | 'back-cover' | number,
+    feedback: string
+  ): Promise<PageImage> {
+    const project = await this.storage.loadProject(projectId);
+
+    if (!project.outline) {
+      throw new Error('Cannot refine illustration: outline not found');
+    }
+
+    let originalImage: PageImage | null = null;
+    let illustrationDescription: string;
+    let pageText: string | undefined;
+    let imageType: 'page' | 'cover' | 'back-cover';
+    let imageCategory: 'pages' | 'cover';
+    let imageId: string;
+
+    if (target === 'cover') {
+      originalImage = project.coverImage;
+      illustrationDescription = project.outline.coverDescription;
+      pageText = project.outline.title;
+      imageType = 'cover';
+      imageCategory = 'cover';
+      imageId = 'front';
+    } else if (target === 'back-cover') {
+      originalImage = project.backCoverImage;
+      illustrationDescription = project.outline.backCoverDescription;
+      pageText = project.outline.backCoverBlurb;
+      imageType = 'back-cover';
+      imageCategory = 'cover';
+      imageId = 'back';
+    } else {
+      const pageNumber = target;
+      originalImage = project.pageImages.find(p => p.pageNumber === pageNumber) || null;
+      const page = project.manuscript?.pages.find(p => p.pageNumber === pageNumber);
+      if (!page) {
+        throw new Error(`Page ${pageNumber} not found in manuscript`);
+      }
+      illustrationDescription = page.illustrationDescription;
+      pageText = page.text || undefined;
+      imageType = 'page';
+      imageCategory = 'pages';
+      imageId = `page-${pageNumber}`;
+    }
+
+    if (!originalImage) {
+      throw new Error(`Original image not found for ${target}`);
+    }
+
+    // Build the refinement prompt
+    const prompt = getIllustrationRefinePrompt({
+      originalPrompt: originalImage.prompt,
+      illustrationDescription,
+      pageText,
+      feedback,
+      characters: project.outline.characters,
+      artStyleKeywords: project.settings.artStyleKeywords,
+      imageType,
+    });
+
+    // Load the original image as a reference for style consistency
+    const referenceImages: ReferenceImage[] = [];
+    try {
+      const originalBuffer = await this.storage.loadImage(projectId, imageCategory, imageId);
+      referenceImages.push({
+        type: 'style',
+        label: 'Original image (maintain style)',
+        buffer: originalBuffer,
+        mimeType: 'image/png',
+      });
+    } catch {
+      // Original image not available, continue without it
+    }
+
+    // Generate the refined image using the session-based approach
+    const sessionId = await this.imageAdapter.createSession(projectId);
+
+    try {
+      const startTime = Date.now();
+      const generatedImage = await this.imageAdapter.generateWithReferences(
+        sessionId,
+        prompt,
+        referenceImages,
+        { aspectRatio: project.settings.aspectRatio }
+      );
+
+      // Save the refined image (overwrites the original)
+      const imagePath = await this.storage.saveImage(
+        projectId,
+        imageCategory,
+        imageId,
+        generatedImage.buffer
+      );
+
+      // Build generation metadata
+      const generationMetadata: GenerationMetadata = {
+        sessionId,
+        prompt,
+        referenceImages: referenceImages.map(ref => ({
+          type: ref.type,
+          label: ref.label,
+        })),
+        modelUsed: this.imageAdapter.getModelInfo().id,
+        generatedAt: new Date().toISOString(),
+        generationTimeMs: Date.now() - startTime,
+        aspectRatio: project.settings.aspectRatio,
+        messageIndex: this.imageAdapter.getMessageIndex(sessionId),
+      };
+
+      const newPageImage: PageImage = {
+        pageNumber: originalImage.pageNumber,
+        imagePath,
+        hasTextBaked: originalImage.hasTextBaked,
+        bakedText: originalImage.bakedText,
+        prompt,
+        generatedAt: new Date().toISOString(),
+        modelUsed: this.imageAdapter.getModelInfo().id,
+        aspectRatio: project.settings.aspectRatio,
+        imageType: originalImage.imageType,
+        generationMetadata,
+      };
+
+      // Update the project with the new image
+      if (target === 'cover') {
+        project.coverImage = newPageImage;
+      } else if (target === 'back-cover') {
+        project.backCoverImage = newPageImage;
+      } else {
+        const existingIndex = project.pageImages.findIndex(p => p.pageNumber === target);
+        if (existingIndex >= 0) {
+          project.pageImages[existingIndex] = newPageImage;
+        }
+      }
+
+      project.updatedAt = new Date().toISOString();
+      await this.storage.saveProject(project);
+
+      return newPageImage;
+    } finally {
+      this.imageAdapter.closeSession(sessionId);
+    }
+  }
+
+  // Refine multiple illustrations based on aggregated feedback
+  async refineAllIllustrations(
+    projectId: string,
+    feedback: IllustrationFeedback
+  ): Promise<IllustrationRefinementResult> {
+    const result: IllustrationRefinementResult = {
+      pages: [],
+    };
+
+    // Refine cover if feedback provided
+    if (feedback.cover) {
+      result.cover = await this.refineIllustration(projectId, 'cover', feedback.cover);
+    }
+
+    // Refine pages sequentially
+    for (const [pageNumberStr, pageFeedback] of Object.entries(feedback.pages)) {
+      const pageNumber = parseInt(pageNumberStr, 10);
+      const pageImage = await this.refineIllustration(projectId, pageNumber, pageFeedback);
+      result.pages.push(pageImage);
+    }
+
+    // Refine back cover if feedback provided
+    if (feedback.backCover) {
+      result.backCover = await this.refineIllustration(projectId, 'back-cover', feedback.backCover);
+    }
+
+    return result;
   }
 }

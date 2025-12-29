@@ -12,6 +12,9 @@ import {
   PageImage,
   RefineOutlineRequest,
   RefineManuscriptRequest,
+  RefineIllustrationRequest,
+  RefineAllIllustrationsRequest,
+  IllustrationRefinementResult,
 } from '@storybook-generator/shared';
 import { fetchWithProgress } from './sse';
 
@@ -130,6 +133,22 @@ export function getExportDownloadUrl(projectId: string, exportId: string): strin
   return `${API_BASE}/export/${projectId}/exports/${exportId}`;
 }
 
-export function getImageUrl(projectId: string, category: string, imageId: string): string {
-  return `${API_BASE}/images/${projectId}/${category}/${imageId}`;
+export function getImageUrl(projectId: string, category: string, imageId: string, cacheBuster?: string): string {
+  const baseUrl = `${API_BASE}/images/${projectId}/${category}/${imageId}`;
+  return cacheBuster ? `${baseUrl}?v=${cacheBuster}` : baseUrl;
+}
+
+// Illustration refinement endpoints
+export async function refineIllustration(data: RefineIllustrationRequest): Promise<PageImage> {
+  return request<PageImage>('/generate/illustration/refine', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function refineAllIllustrations(data: RefineAllIllustrationsRequest): Promise<IllustrationRefinementResult> {
+  return request<IllustrationRefinementResult>('/generate/illustrations/refine', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
