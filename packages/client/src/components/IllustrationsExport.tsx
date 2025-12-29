@@ -4,6 +4,7 @@ import styled from '@emotion/styled';
 import { useProjectStore, useGenerationStore, useUIStore } from '../stores/RootStore';
 import { getImageUrl } from '../api/client';
 import { PageCard } from './PageCard';
+import { GenerationInfoModal } from './GenerationInfoModal';
 import type { PageImage } from '@storybook-generator/shared';
 
 const Container = styled.div`
@@ -173,12 +174,39 @@ const CoverText = styled.p`
   font-size: 0.875rem;
 `;
 
+const CoverActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--border-color);
+`;
+
+const InfoButton = styled.button`
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &:hover {
+    background: var(--surface-color);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+  }
+`;
+
 export const IllustrationsExport = observer(function IllustrationsExport() {
   const projectStore = useProjectStore();
   const generationStore = useGenerationStore();
   const uiStore = useUIStore();
 
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [selectedInfoImage, setSelectedInfoImage] = useState<PageImage | null>(null);
 
   const project = projectStore.currentProject;
   const pageImages = project?.pageImages || [];
@@ -287,6 +315,11 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
               <CoverTitle>{outline?.title}</CoverTitle>
               {outline?.subtitle && <CoverText>{outline.subtitle}</CoverText>}
             </CoverInfo>
+            <CoverActions>
+              <InfoButton onClick={() => setSelectedInfoImage(coverImage)}>
+                Info
+              </InfoButton>
+            </CoverActions>
           </CoverCard>
         </CoverSection>
       )}
@@ -307,6 +340,7 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
                 characterNames={characterNames}
                 showImage={true}
                 showIllustrationBrief={true}
+                onInfoClick={() => setSelectedInfoImage(pageImage)}
               />
             );
           })}
@@ -324,6 +358,11 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
             <CoverInfo>
               <CoverText>{outline?.backCoverBlurb}</CoverText>
             </CoverInfo>
+            <CoverActions>
+              <InfoButton onClick={() => setSelectedInfoImage(backCoverImage)}>
+                Info
+              </InfoButton>
+            </CoverActions>
           </CoverCard>
         </CoverSection>
       )}
@@ -339,6 +378,15 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
           {isLoading ? 'Creating PDF...' : 'Export as PDF'}
         </Button>
       </ExportSection>
+
+      {/* Generation Info Modal */}
+      {selectedInfoImage && (
+        <GenerationInfoModal
+          pageImage={selectedInfoImage}
+          isOpen={true}
+          onClose={() => setSelectedInfoImage(null)}
+        />
+      )}
     </Container>
   );
 });

@@ -1,5 +1,32 @@
 import { AspectRatio } from './project.js';
 
+// Reference Image Types (for session-based generation)
+export interface ReferenceImage {
+  type: 'character' | 'previous-page' | 'style';
+  label: string;        // e.g., "Luna the rabbit", "Page 3"
+  buffer: Buffer;       // Image data (not stored, used at generation time)
+  mimeType: string;     // e.g., "image/png"
+}
+
+// Reference info without the actual buffer (for storage/display)
+export interface ReferenceImageInfo {
+  type: 'character' | 'previous-page' | 'style';
+  label: string;
+  sourcePath?: string;  // Path to the reference image file
+}
+
+// Detailed metadata stored with each generated image for introspection
+export interface GenerationMetadata {
+  sessionId: string;
+  prompt: string;                         // Full prompt sent to Gemini
+  referenceImages: ReferenceImageInfo[];  // What refs were passed (without buffer)
+  modelUsed: string;
+  generatedAt: string;
+  generationTimeMs: number;
+  aspectRatio: AspectRatio;
+  messageIndex?: number;                  // Position in chat session (1 = first, etc.)
+}
+
 // Text Generation Types
 export interface TextGenOptions {
   maxTokens?: number;
@@ -64,6 +91,9 @@ export interface PageImage {
   modelUsed: string;
   aspectRatio: AspectRatio;
   imageType?: 'page' | 'cover' | 'back-cover';  // Distinguish cover images
+
+  // Full generation metadata for introspection (Phase 2)
+  generationMetadata?: GenerationMetadata;
 }
 
 // Generation Requests

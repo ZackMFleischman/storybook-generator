@@ -1,4 +1,4 @@
-import { AspectRatio, ImageGenOptions, GeneratedImage, ImageModelInfo } from '@storybook-generator/shared';
+import { AspectRatio, ImageGenOptions, GeneratedImage, ImageModelInfo, ReferenceImage } from '@storybook-generator/shared';
 import { IImageGenerationAdapter } from './image-generation.interface.js';
 
 // A simple 1x1 PNG placeholder (red pixel)
@@ -13,6 +13,7 @@ const PLACEHOLDER_PNG = Buffer.from([
 
 export class MockImageAdapter implements IImageGenerationAdapter {
   private customImage?: Buffer;
+  private messageCounters: Map<string, number> = new Map();
 
   setCustomImage(buffer: Buffer): void {
     this.customImage = buffer;
@@ -51,5 +52,45 @@ export class MockImageAdapter implements IImageGenerationAdapter {
 
   getSupportedAspectRatios(): AspectRatio[] {
     return ['1:1', '3:4', '4:3'];
+  }
+
+  // Session-based generation methods (Phase 2)
+  async createSession(projectId: string): Promise<string> {
+    const sessionId = `mock-session-${projectId}-${Date.now()}`;
+    this.messageCounters.set(sessionId, 0);
+    return sessionId;
+  }
+
+  async generateWithReferences(
+    sessionId: string,
+    prompt: string,
+    referenceImages: ReferenceImage[],
+    options: ImageGenOptions
+  ): Promise<GeneratedImage> {
+    // Simulate delay
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Increment message counter
+    const count = (this.messageCounters.get(sessionId) || 0) + 1;
+    this.messageCounters.set(sessionId, count);
+
+    return {
+      buffer: this.customImage ?? PLACEHOLDER_PNG,
+      mimeType: 'image/png',
+      revisedPrompt: prompt,
+      metadata: {
+        model: 'mock-image-model',
+        aspectRatio: options.aspectRatio,
+        generationTime: 100,
+      },
+    };
+  }
+
+  closeSession(sessionId: string): void {
+    this.messageCounters.delete(sessionId);
+  }
+
+  getMessageIndex(sessionId: string): number {
+    return this.messageCounters.get(sessionId) || 0;
   }
 }

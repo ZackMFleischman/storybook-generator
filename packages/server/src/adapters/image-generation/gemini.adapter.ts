@@ -1,15 +1,101 @@
 import { GoogleGenAI, Modality } from '@google/genai';
-import { AspectRatio, ImageGenOptions, GeneratedImage, ImageModelInfo } from '@storybook-generator/shared';
+import { AspectRatio, ImageGenOptions, GeneratedImage, ImageModelInfo, ReferenceImage } from '@storybook-generator/shared';
 import { IImageGenerationAdapter } from './image-generation.interface.js';
 import { getCacheKey, getImageCache, setImageCache } from '../../cache/index.js';
 
 export class GeminiAdapter implements IImageGenerationAdapter {
   private client: GoogleGenAI;
   private modelId: string;
+  private messageCounters: Map<string, number> = new Map();
 
   constructor(apiKey: string, modelId: string = 'gemini-2.5-flash-preview-image-generation') {
     this.client = new GoogleGenAI({ apiKey });
     this.modelId = modelId;
+  }
+
+  // Session tracking (lightweight - just for metadata, no actual Gemini session)
+  async createSession(projectId: string): Promise<string> {
+    const sessionId = `gen-${projectId}-${Date.now()}`;
+    this.messageCounters.set(sessionId, 0);
+    return sessionId;
+  }
+
+  // Single-turn generation WITH reference images
+  // Uses generateContent (not chat) to avoid thought_signature issues
+  async generateWithReferences(
+    sessionId: string,
+    prompt: string,
+    referenceImages: ReferenceImage[],
+    options: ImageGenOptions
+  ): Promise<GeneratedImage> {
+    const startTime = Date.now();
+
+    // Build multi-part content with text and images
+    const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+
+    // Add reference images FIRST (so the model sees them before the prompt)
+    for (const ref of referenceImages) {
+      const base64Data = ref.buffer.toString('base64');
+      console.log(`[Gemini] Adding reference image: ${ref.label}`);
+      console.log(`  - Type: ${ref.type}, MimeType: ${ref.mimeType}`);
+      console.log(`  - Buffer size: ${ref.buffer.length} bytes`);
+      console.log(`  - Base64 length: ${base64Data.length} chars`);
+
+      parts.push({ text: `[Reference - ${ref.type}: ${ref.label}]` });
+      parts.push({
+        inlineData: {
+          mimeType: ref.mimeType,
+          data: base64Data,
+        },
+      });
+    }
+
+    console.log(`[Gemini] Total parts being sent: ${parts.length} (${referenceImages.length} images + text labels + prompt)`);
+
+    // Add the main prompt last
+    parts.push({ text: prompt });
+
+    // Increment message counter for metadata tracking
+    const messageIndex = (this.messageCounters.get(sessionId) || 0) + 1;
+    this.messageCounters.set(sessionId, messageIndex);
+
+    // Use single-turn generateContent (not chat session)
+    const response = await this.client.models.generateContent({
+      model: this.modelId,
+      contents: [{ role: 'user', parts }],
+      config: {
+        responseModalities: [Modality.TEXT, Modality.IMAGE],
+      },
+    });
+
+    // Extract image from response
+    const imagePart = response.candidates?.[0]?.content?.parts?.find(
+      (p: unknown) => p && typeof p === 'object' && 'inlineData' in p
+    ) as { inlineData?: { data?: string; mimeType?: string } } | undefined;
+
+    if (!imagePart || !imagePart.inlineData) {
+      throw new Error('No image generated in response');
+    }
+
+    const buffer = Buffer.from(imagePart.inlineData.data!, 'base64');
+
+    return {
+      buffer,
+      mimeType: imagePart.inlineData.mimeType || 'image/png',
+      metadata: {
+        model: this.modelId,
+        aspectRatio: options.aspectRatio,
+        generationTime: Date.now() - startTime,
+      },
+    };
+  }
+
+  closeSession(sessionId: string): void {
+    this.messageCounters.delete(sessionId);
+  }
+
+  getMessageIndex(sessionId: string): number {
+    return this.messageCounters.get(sessionId) || 0;
   }
 
   async generateImage(

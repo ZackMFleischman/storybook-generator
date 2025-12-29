@@ -144,6 +144,31 @@ const ImageMetaBar = styled.div`
   color: var(--text-secondary);
 `;
 
+const InfoButton = styled.button`
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+
+  &:hover {
+    background: var(--surface-color);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+  }
+`;
+
+const MetaActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
 export interface PageCardProps {
   page: ManuscriptPage;
   pageImage?: PageImage;
@@ -151,6 +176,7 @@ export interface PageCardProps {
   characterNames?: Map<string, string>;
   showImage?: boolean;
   showIllustrationBrief?: boolean;
+  onInfoClick?: () => void;
 }
 
 export function PageCard({
@@ -160,6 +186,7 @@ export function PageCard({
   characterNames = new Map(),
   showImage = false,
   showIllustrationBrief = true,
+  onInfoClick,
 }: PageCardProps) {
   const getCharacterName = (charId: string): string => {
     return characterNames.get(charId) || charId;
@@ -219,7 +246,14 @@ export function PageCard({
       {pageImage && (
         <ImageMetaBar>
           <span>{pageImage.hasTextBaked ? 'Text baked into image' : 'Text overlay mode'}</span>
-          <span>{pageImage.modelUsed}</span>
+          <MetaActions>
+            {onInfoClick && (
+              <InfoButton onClick={onInfoClick}>
+                Info
+              </InfoButton>
+            )}
+            <span>{pageImage.modelUsed}</span>
+          </MetaActions>
         </ImageMetaBar>
       )}
     </Card>
