@@ -129,6 +129,50 @@ const ExportDescription = styled.p`
   font-size: 0.875rem;
 `;
 
+const CoverSection = styled.div`
+  margin-bottom: 2rem;
+`;
+
+const CoverLabel = styled.h3`
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 1rem;
+`;
+
+const CoverCard = styled.div`
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+`;
+
+const CoverImage = styled.img`
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+`;
+
+const CoverInfo = styled.div`
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+`;
+
+const CoverTitle = styled.h4`
+  color: var(--text-primary);
+  margin: 0 0 0.25rem;
+`;
+
+const CoverText = styled.p`
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.875rem;
+`;
+
 export const IllustrationsExport = observer(function IllustrationsExport() {
   const projectStore = useProjectStore();
   const generationStore = useGenerationStore();
@@ -140,6 +184,8 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
   const pageImages = project?.pageImages || [];
   const manuscript = project?.manuscript;
   const outline = project?.outline;
+  const coverImage = project?.coverImage;
+  const backCoverImage = project?.backCoverImage;
   const isLoading = generationStore.isGenerating;
 
   // Create a map of character IDs to names
@@ -186,7 +232,7 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
         <EmptyState>
           <EmptyTitle>No Illustrations Yet</EmptyTitle>
           <EmptyText>
-            Generate illustrations for all {manuscript?.pages.length || 0} pages of your storybook.
+            Generate cover and illustrations for all {manuscript?.pages.length || 0} pages of your storybook.
           </EmptyText>
           <Button onClick={handleGenerateIllustrations} disabled={isLoading}>
             {isLoading ? 'Generating...' : 'Generate All Illustrations'}
@@ -202,7 +248,7 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
         <TitleSection>
           <Title>Illustrations</Title>
           <Subtitle>
-            {pageImages.length} of {manuscript?.pages.length || 0} pages illustrated
+            {coverImage ? 'Cover + ' : ''}{pageImages.length} of {manuscript?.pages.length || 0} pages{backCoverImage ? ' + Back Cover' : ''} illustrated
           </Subtitle>
         </TitleSection>
         <ButtonGroup>
@@ -228,6 +274,23 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
         </SuccessMessage>
       )}
 
+      {/* Front Cover */}
+      {coverImage && project && (
+        <CoverSection>
+          <CoverLabel>Front Cover</CoverLabel>
+          <CoverCard>
+            <CoverImage
+              src={getImageUrl(project.id, 'cover', 'front')}
+              alt="Front Cover"
+            />
+            <CoverInfo>
+              <CoverTitle>{outline?.title}</CoverTitle>
+              {outline?.subtitle && <CoverText>{outline.subtitle}</CoverText>}
+            </CoverInfo>
+          </CoverCard>
+        </CoverSection>
+      )}
+
       <PageList>
         {pageImages
           .slice()
@@ -248,6 +311,22 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
             );
           })}
       </PageList>
+
+      {/* Back Cover */}
+      {backCoverImage && project && (
+        <CoverSection>
+          <CoverLabel>Back Cover</CoverLabel>
+          <CoverCard>
+            <CoverImage
+              src={getImageUrl(project.id, 'cover', 'back')}
+              alt="Back Cover"
+            />
+            <CoverInfo>
+              <CoverText>{outline?.backCoverBlurb}</CoverText>
+            </CoverInfo>
+          </CoverCard>
+        </CoverSection>
+      )}
 
       <ExportSection>
         <ExportInfo>

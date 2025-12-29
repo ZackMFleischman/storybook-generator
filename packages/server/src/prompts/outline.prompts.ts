@@ -49,7 +49,10 @@ You must respond with a valid JSON object in this exact format:
       "description": "What happens in this part of the story",
       "characters": ["char-1"]
     }
-  ]
+  ],
+  "coverDescription": "Detailed illustration description for the FRONT COVER: feature the main character in an iconic pose that captures the story's essence. Include the setting backdrop. This should be eye-catching and convey the book's mood. The title will be overlaid on this image.",
+  "backCoverDescription": "Illustration description for the BACK COVER: a simpler, complementary scene - perhaps a quieter moment, the character from behind looking at something, or a detail from the story world. Should work well with text overlaid.",
+  "backCoverBlurb": "2-3 sentence marketing hook that would appear on the back cover. Write in a way that entices parents and children to read the book. Capture the adventure/emotion without spoiling the ending."
 }`;
 }
 
@@ -100,6 +103,18 @@ export function getOutlineRefinePrompt(currentOutline: Outline, feedback: Outlin
       const plotTitle = plotPoint?.title || plotId;
       feedbackParts.push(`Plot point "${plotTitle}" feedback: ${plotFeedback}`);
     }
+  }
+
+  if (feedback.coverDescription) {
+    feedbackParts.push(`Front cover description feedback: ${feedback.coverDescription}`);
+  }
+
+  if (feedback.backCoverDescription) {
+    feedbackParts.push(`Back cover description feedback: ${feedback.backCoverDescription}`);
+  }
+
+  if (feedback.backCoverBlurb) {
+    feedbackParts.push(`Back cover blurb feedback: ${feedback.backCoverBlurb}`);
   }
 
   return `Here is the current outline:

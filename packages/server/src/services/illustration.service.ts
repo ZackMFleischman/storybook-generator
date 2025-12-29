@@ -1,7 +1,7 @@
 import { PageImage, GeneratePageRequest, GenerateAllPagesRequest } from '@storybook-generator/shared';
 import { IImageGenerationAdapter } from '../adapters/image-generation/index.js';
 import { IStorageAdapter } from '../adapters/storage/index.js';
-import { getIllustrationPrompt } from '../prompts/index.js';
+import { getIllustrationPrompt, getCoverPrompt, getBackCoverPrompt } from '../prompts/index.js';
 
 export class IllustrationService {
   constructor(
@@ -79,6 +79,102 @@ export class IllustrationService {
     return pageImage;
   }
 
+  async generateCover(projectId: string): Promise<PageImage> {
+    const project = await this.storage.loadProject(projectId);
+
+    if (!project.outline) {
+      throw new Error('Cannot generate cover: outline not found');
+    }
+
+    const prompt = getCoverPrompt({
+      outline: project.outline,
+      characters: project.outline.characters,
+      setting: project.outline.setting,
+      targetAge: project.settings.targetAge,
+      artStyleKeywords: project.settings.artStyleKeywords,
+      fontStyle: project.settings.fontStyle,
+    });
+
+    const generatedImage = await this.imageAdapter.generateImage(prompt, {
+      aspectRatio: project.settings.aspectRatio,
+    });
+
+    // Save the cover image
+    const imagePath = await this.storage.saveImage(
+      projectId,
+      'cover',
+      'front',
+      generatedImage.buffer
+    );
+
+    const coverImage: PageImage = {
+      pageNumber: 0, // Cover is page 0
+      imagePath,
+      hasTextBaked: true,
+      bakedText: project.outline.title,
+      prompt,
+      generatedAt: new Date().toISOString(),
+      modelUsed: this.imageAdapter.getModelInfo().id,
+      aspectRatio: project.settings.aspectRatio,
+      imageType: 'cover',
+    };
+
+    // Update project with cover image
+    project.coverImage = coverImage;
+    project.updatedAt = new Date().toISOString();
+    await this.storage.saveProject(project);
+
+    return coverImage;
+  }
+
+  async generateBackCover(projectId: string): Promise<PageImage> {
+    const project = await this.storage.loadProject(projectId);
+
+    if (!project.outline) {
+      throw new Error('Cannot generate back cover: outline not found');
+    }
+
+    const prompt = getBackCoverPrompt({
+      outline: project.outline,
+      characters: project.outline.characters,
+      setting: project.outline.setting,
+      targetAge: project.settings.targetAge,
+      artStyleKeywords: project.settings.artStyleKeywords,
+      fontStyle: project.settings.fontStyle,
+    });
+
+    const generatedImage = await this.imageAdapter.generateImage(prompt, {
+      aspectRatio: project.settings.aspectRatio,
+    });
+
+    // Save the back cover image
+    const imagePath = await this.storage.saveImage(
+      projectId,
+      'cover',
+      'back',
+      generatedImage.buffer
+    );
+
+    const backCoverImage: PageImage = {
+      pageNumber: -1, // Back cover is page -1
+      imagePath,
+      hasTextBaked: true,
+      bakedText: project.outline.backCoverBlurb,
+      prompt,
+      generatedAt: new Date().toISOString(),
+      modelUsed: this.imageAdapter.getModelInfo().id,
+      aspectRatio: project.settings.aspectRatio,
+      imageType: 'back-cover',
+    };
+
+    // Update project with back cover image
+    project.backCoverImage = backCoverImage;
+    project.updatedAt = new Date().toISOString();
+    await this.storage.saveProject(project);
+
+    return backCoverImage;
+  }
+
   async generateAllPages(
     request: GenerateAllPagesRequest,
     onProgress?: (current: number, total: number, message: string) => void
@@ -91,15 +187,26 @@ export class IllustrationService {
       throw new Error('Cannot generate illustrations: manuscript not found');
     }
 
-    const totalPages = project.manuscript.pages.length;
+    if (!project.outline) {
+      throw new Error('Cannot generate illustrations: outline not found');
+    }
+
+    const contentPages = project.manuscript.pages.length;
+    // Total = front cover + content pages + back cover
+    const totalSteps = contentPages + 2;
     const pageImages: PageImage[] = [];
+    let currentStep = 0;
 
-    // For Phase 1, we use sequential generation
-    // (parallel would be a future optimization)
-    for (let i = 0; i < totalPages; i++) {
+    // Step 1: Generate front cover
+    currentStep++;
+    onProgress?.(currentStep, totalSteps, 'Generating front cover...');
+    await this.generateCover(projectId);
+
+    // Steps 2 to N+1: Generate content pages
+    for (let i = 0; i < contentPages; i++) {
       const page = project.manuscript.pages[i];
-
-      onProgress?.(i + 1, totalPages, `Generating page ${page.pageNumber}...`);
+      currentStep++;
+      onProgress?.(currentStep, totalSteps, `Generating page ${page.pageNumber}...`);
 
       const pageImage = await this.generatePage({
         projectId,
@@ -109,6 +216,11 @@ export class IllustrationService {
 
       pageImages.push(pageImage);
     }
+
+    // Final step: Generate back cover
+    currentStep++;
+    onProgress?.(currentStep, totalSteps, 'Generating back cover...');
+    await this.generateBackCover(projectId);
 
     return pageImages;
   }

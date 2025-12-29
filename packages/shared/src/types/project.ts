@@ -32,6 +32,10 @@ export interface Project {
   outline: Outline | null;
   manuscript: Manuscript | null;
   pageImages: PageImage[];
+
+  // Cover images
+  coverImage: PageImage | null;
+  backCoverImage: PageImage | null;
 }
 
 export interface ProjectSummary {

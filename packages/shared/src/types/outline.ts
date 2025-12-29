@@ -30,6 +30,10 @@ export interface Outline {
   characters: Character[];
   setting: Setting;
   plotPoints: PlotPoint[];
+  // Cover content
+  coverDescription: string;      // Front cover illustration description
+  backCoverDescription: string;  // Back cover illustration description
+  backCoverBlurb: string;        // Marketing blurb for back cover
 }
 
 export interface GenerateOutlineRequest {
@@ -49,6 +53,9 @@ export interface OutlineFeedback {
   setting?: string;
   characters?: Record<string, string>;
   plotPoints?: Record<string, string>;
+  coverDescription?: string;
+  backCoverDescription?: string;
+  backCoverBlurb?: string;
 }
 
 export interface RefineOutlineRequest {

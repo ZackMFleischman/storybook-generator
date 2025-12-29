@@ -27,6 +27,8 @@ export class ProjectService {
       outline: null,
       manuscript: null,
       pageImages: [],
+      coverImage: null,
+      backCoverImage: null,
     };
 
     await this.storage.createProject(project);

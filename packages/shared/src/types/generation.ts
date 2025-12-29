@@ -63,6 +63,7 @@ export interface PageImage {
   generatedAt: string;
   modelUsed: string;
   aspectRatio: AspectRatio;
+  imageType?: 'page' | 'cover' | 'back-cover';  // Distinguish cover images
 }
 
 // Generation Requests

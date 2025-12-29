@@ -49,7 +49,7 @@ export function createDebugRouter(): Router {
 
       // Find image part
       const imagePart = candidate?.content?.parts?.find(
-        (part: Record<string, unknown>) => 'inlineData' in part && part.inlineData
+        (part) => 'inlineData' in part && part.inlineData
       );
 
       if (imagePart && 'inlineData' in imagePart && imagePart.inlineData) {
@@ -68,7 +68,7 @@ export function createDebugRouter(): Router {
           model: modelId,
           prompt: testPrompt,
           candidateCount: response.candidates?.length,
-          parts: candidate?.content?.parts?.map((p: Record<string, unknown>) => Object.keys(p)),
+          parts: candidate?.content?.parts?.map((p) => Object.keys(p)),
           finishReason: candidate?.finishReason,
         });
       }

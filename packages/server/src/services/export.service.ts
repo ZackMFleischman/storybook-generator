@@ -34,32 +34,43 @@ export class ExportService {
 
     const pdfDoc = await PDFDocument.create();
 
-    // Sort page images by page number
-    const sortedImages = [...project.pageImages].sort((a, b) => a.pageNumber - b.pageNumber);
-
-    // Add each page image to the PDF
-    for (const pageImage of sortedImages) {
-      const imageBuffer = await this.storage.loadImage(
-        projectId,
-        'pages',
-        `page-${pageImage.pageNumber}`
-      );
-
-      // Embed the image (detect format from actual content, not file extension)
+    // Helper function to add an image page to the PDF
+    const addImagePage = async (imageBuffer: Buffer) => {
       const image = isPng(imageBuffer)
         ? await pdfDoc.embedPng(imageBuffer)
         : await pdfDoc.embedJpg(imageBuffer);
 
-      // Add a page sized exactly to the image (no letterboxing)
       const page = pdfDoc.addPage([image.width, image.height]);
-
-      // Draw image filling the entire page
       page.drawImage(image, {
         x: 0,
         y: 0,
         width: image.width,
         height: image.height,
       });
+    };
+
+    // 1. Add front cover if it exists
+    if (project.coverImage) {
+      const coverBuffer = await this.storage.loadImage(projectId, 'cover', 'front');
+      await addImagePage(coverBuffer);
+    }
+
+    // 2. Add content pages sorted by page number
+    const sortedImages = [...project.pageImages].sort((a, b) => a.pageNumber - b.pageNumber);
+
+    for (const pageImage of sortedImages) {
+      const imageBuffer = await this.storage.loadImage(
+        projectId,
+        'pages',
+        `page-${pageImage.pageNumber}`
+      );
+      await addImagePage(imageBuffer);
+    }
+
+    // 3. Add back cover if it exists
+    if (project.backCoverImage) {
+      const backCoverBuffer = await this.storage.loadImage(projectId, 'cover', 'back');
+      await addImagePage(backCoverBuffer);
     }
 
     // Generate the PDF bytes

@@ -9,7 +9,7 @@ export function createImagesRouter(storage: IStorageAdapter): Router {
     try {
       const { projectId, category, imageId } = req.params;
 
-      if (!['pages', 'composed', 'references'].includes(category)) {
+      if (!['pages', 'composed', 'references', 'cover'].includes(category)) {
         res.status(400).json({ error: 'Invalid image category' });
         return;
       }

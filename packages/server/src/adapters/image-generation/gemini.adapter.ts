@@ -30,7 +30,6 @@ export class GeminiAdapter implements IImageGenerationAdapter {
             model: this.modelId,
             aspectRatio: options.aspectRatio,
             generationTime: 0,
-            cached: true,
           },
         };
       }

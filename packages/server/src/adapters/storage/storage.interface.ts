@@ -1,6 +1,6 @@
 import { Project, ProjectSummary } from '@storybook-generator/shared';
 
-export type ImageCategory = 'pages' | 'composed' | 'references';
+export type ImageCategory = 'pages' | 'composed' | 'references' | 'cover';
 
 export interface IStorageAdapter {
   // Project lifecycle
