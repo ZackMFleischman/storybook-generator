@@ -358,6 +358,9 @@ export const ManuscriptView = observer(function ManuscriptView() {
               sectionLabel="Book Title"
               feedback={editStore.outlineFeedback.title}
               onFeedbackChange={(f) => editStore.setOutlineTitleFeedback(f)}
+              editableContent={outline.title}
+              onContentChange={(value) => projectStore.updateOutlineField('title', value)}
+              contentType="text"
             >
               <CoverSection>
                 <BookTitle>{outline.title}</BookTitle>
@@ -369,6 +372,8 @@ export const ManuscriptView = observer(function ManuscriptView() {
               sectionLabel="Front Cover Description"
               feedback={editStore.outlineFeedback.coverDescription}
               onFeedbackChange={(f) => editStore.setCoverDescriptionFeedback(f)}
+              editableContent={outline.coverDescription}
+              onContentChange={(value) => projectStore.updateOutlineField('coverDescription', value)}
             >
               <CoverSection>
                 <CoverLabel>Front Cover</CoverLabel>
@@ -380,6 +385,8 @@ export const ManuscriptView = observer(function ManuscriptView() {
               sectionLabel="Back Cover Description"
               feedback={editStore.outlineFeedback.backCoverDescription}
               onFeedbackChange={(f) => editStore.setBackCoverDescriptionFeedback(f)}
+              editableContent={outline.backCoverDescription}
+              onContentChange={(value) => projectStore.updateOutlineField('backCoverDescription', value)}
             >
               <CoverSection>
                 <CoverLabel>Back Cover</CoverLabel>
@@ -391,6 +398,8 @@ export const ManuscriptView = observer(function ManuscriptView() {
               sectionLabel="Back Cover Blurb"
               feedback={editStore.outlineFeedback.backCoverBlurb}
               onFeedbackChange={(f) => editStore.setBackCoverBlurbFeedback(f)}
+              editableContent={outline.backCoverBlurb}
+              onContentChange={(value) => projectStore.updateOutlineField('backCoverBlurb', value)}
             >
               <CoverSection>
                 <CoverLabel>Blurb</CoverLabel>
@@ -405,9 +414,11 @@ export const ManuscriptView = observer(function ManuscriptView() {
         {manuscript.pages.map((page: ManuscriptPage) => (
           <EditableSection
             key={page.pageNumber}
-            sectionLabel={`Page ${page.pageNumber}`}
+            sectionLabel={`Page ${page.pageNumber} Text`}
             feedback={editStore.manuscriptFeedback.pages.get(page.pageNumber)}
             onFeedbackChange={(f) => editStore.setPageFeedback(page.pageNumber, f)}
+            editableContent={page.text || ''}
+            onContentChange={(value) => projectStore.updateManuscriptPage(page.pageNumber, { text: value || null })}
           >
             <PageCard>
               <PageTextSection>
@@ -452,7 +463,7 @@ export const ManuscriptView = observer(function ManuscriptView() {
       {(editStore.hasManuscriptFeedback || editStore.hasOutlineFeedback) && (
         <FloatingBar>
           <FeedbackCount>
-            {editStore.manuscriptFeedbackCount + editStore.outlineFeedbackCount} pending edit{(editStore.manuscriptFeedbackCount + editStore.outlineFeedbackCount) !== 1 ? 's' : ''}
+            {editStore.manuscriptFeedbackCount + editStore.outlineFeedbackCount} AI edit{(editStore.manuscriptFeedbackCount + editStore.outlineFeedbackCount) !== 1 ? 's' : ''} pending
           </FeedbackCount>
           <Button variant="secondary" onClick={() => { editStore.clearManuscriptFeedback(); editStore.clearOutlineFeedback(); }}>
             Clear All

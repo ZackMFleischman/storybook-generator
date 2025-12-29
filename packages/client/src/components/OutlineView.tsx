@@ -277,6 +277,9 @@ export const OutlineView = observer(function OutlineView() {
         sectionLabel="Title"
         feedback={editStore.outlineFeedback.title}
         onFeedbackChange={(f) => editStore.setOutlineTitleFeedback(f)}
+        editableContent={outline.title}
+        onContentChange={(value) => projectStore.updateOutlineField('title', value)}
+        contentType="text"
       >
         <Card>
           <StoryTitle>{outline.title}</StoryTitle>
@@ -285,9 +288,11 @@ export const OutlineView = observer(function OutlineView() {
       </EditableSection>
 
       <EditableSection
-        sectionLabel="Story Overview"
+        sectionLabel="Synopsis"
         feedback={editStore.outlineFeedback.overall}
         onFeedbackChange={(f) => editStore.setOutlineOverallFeedback(f)}
+        editableContent={outline.synopsis}
+        onContentChange={(value) => projectStore.updateOutlineField('synopsis', value)}
       >
         <Card>
           <Synopsis>{outline.synopsis}</Synopsis>
@@ -305,6 +310,8 @@ export const OutlineView = observer(function OutlineView() {
             sectionLabel="Front Cover Description"
             feedback={editStore.outlineFeedback.coverDescription}
             onFeedbackChange={(f) => editStore.setCoverDescriptionFeedback(f)}
+            editableContent={outline.coverDescription}
+            onContentChange={(value) => projectStore.updateOutlineField('coverDescription', value)}
           >
             <div style={{ background: 'var(--background-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
               <Label>Front Cover</Label>
@@ -318,6 +325,8 @@ export const OutlineView = observer(function OutlineView() {
             sectionLabel="Back Cover Description"
             feedback={editStore.outlineFeedback.backCoverDescription}
             onFeedbackChange={(f) => editStore.setBackCoverDescriptionFeedback(f)}
+            editableContent={outline.backCoverDescription}
+            onContentChange={(value) => projectStore.updateOutlineField('backCoverDescription', value)}
           >
             <div style={{ background: 'var(--background-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
               <Label>Back Cover</Label>
@@ -331,6 +340,8 @@ export const OutlineView = observer(function OutlineView() {
             sectionLabel="Back Cover Blurb"
             feedback={editStore.outlineFeedback.backCoverBlurb}
             onFeedbackChange={(f) => editStore.setBackCoverBlurbFeedback(f)}
+            editableContent={outline.backCoverBlurb}
+            onContentChange={(value) => projectStore.updateOutlineField('backCoverBlurb', value)}
           >
             <div style={{ background: 'var(--background-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
               <Label>Blurb</Label>
@@ -351,6 +362,8 @@ export const OutlineView = observer(function OutlineView() {
               sectionLabel={`Character: ${character.name}`}
               feedback={editStore.outlineFeedback.characters.get(character.id)}
               onFeedbackChange={(f) => editStore.setCharacterFeedback(character.id, f)}
+              editableContent={character.description}
+              onContentChange={(value) => projectStore.updateCharacter(character.id, { description: value })}
             >
               <CharacterCard>
                 <CharacterName>{character.name}</CharacterName>
@@ -366,6 +379,8 @@ export const OutlineView = observer(function OutlineView() {
         sectionLabel="Setting"
         feedback={editStore.outlineFeedback.setting}
         onFeedbackChange={(f) => editStore.setOutlineSettingFeedback(f)}
+        editableContent={outline.setting.location}
+        onContentChange={(value) => projectStore.updateSetting({ location: value })}
       >
         <Card>
           <CardTitle>Setting</CardTitle>
@@ -398,6 +413,8 @@ export const OutlineView = observer(function OutlineView() {
                 sectionLabel={`Plot Point: ${point.title}`}
                 feedback={editStore.outlineFeedback.plotPoints.get(point.id)}
                 onFeedbackChange={(f) => editStore.setPlotPointFeedback(point.id, f)}
+                editableContent={point.description}
+                onContentChange={(value) => projectStore.updatePlotPoint(point.id, { description: value })}
               >
                 <PlotItemCard>
                   <div>
@@ -414,7 +431,7 @@ export const OutlineView = observer(function OutlineView() {
       {editStore.hasOutlineFeedback && (
         <FloatingBar>
           <FeedbackCount>
-            {editStore.outlineFeedbackCount} pending edit{editStore.outlineFeedbackCount !== 1 ? 's' : ''}
+            {editStore.outlineFeedbackCount} AI edit{editStore.outlineFeedbackCount !== 1 ? 's' : ''} pending
           </FeedbackCount>
           <Button variant="secondary" onClick={() => editStore.clearOutlineFeedback()}>
             Clear All

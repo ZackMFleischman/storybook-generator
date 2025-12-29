@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styled from '@emotion/styled';
 
-const Container = styled.div<{ hasFeedback: boolean }>`
+const Container = styled.div<{ hasFeedback: boolean; hasDirectEdit: boolean }>`
   position: relative;
-  border: 2px solid ${props => props.hasFeedback ? 'var(--secondary-color)' : 'transparent'};
+  border: 2px solid ${props => {
+    if (props.hasDirectEdit) return 'var(--primary-color)';
+    if (props.hasFeedback) return 'var(--secondary-color)';
+    return 'transparent';
+  }};
   border-radius: var(--radius-md);
   transition: border-color 0.2s ease;
 
@@ -34,11 +38,11 @@ const EditButton = styled.button`
   }
 `;
 
-const FeedbackBadge = styled.span`
+const FeedbackBadge = styled.span<{ variant?: 'ai' | 'manual' }>`
   position: absolute;
   top: -0.5rem;
   right: -0.5rem;
-  background: var(--secondary-color);
+  background: ${props => props.variant === 'manual' ? 'var(--primary-color)' : 'var(--secondary-color)'};
   color: white;
   font-size: 0.625rem;
   font-weight: 600;
@@ -46,12 +50,42 @@ const FeedbackBadge = styled.span`
   border-radius: 999px;
 `;
 
-const FeedbackInputContainer = styled.div`
+const EditInputContainer = styled.div<{ mode: 'ai' | 'manual' }>`
   margin-top: 0.75rem;
   padding: 0.75rem;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
+  background: ${props => props.mode === 'manual' ? '#f0f9ff' : '#fffbeb'};
+  border: 1px solid ${props => props.mode === 'manual' ? '#7dd3fc' : '#fcd34d'};
   border-radius: var(--radius-md);
+`;
+
+const ModeToggle = styled.div`
+  display: flex;
+  gap: 0;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+`;
+
+const ModeButton = styled.button<{ active: boolean }>`
+  flex: 1;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: ${props => props.active ? 'var(--primary-color)' : 'var(--background-color)'};
+  color: ${props => props.active ? 'white' : 'var(--text-secondary)'};
+
+  &:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const FeedbackLabel = styled.label`
@@ -71,6 +105,36 @@ const FeedbackTextarea = styled.textarea`
   font-family: inherit;
   resize: vertical;
   min-height: 60px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+`;
+
+const ManualEditInput = styled.input`
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-family: inherit;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+  }
+`;
+
+const ManualEditTextarea = styled.textarea`
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
 
   &:focus {
     outline: none;
@@ -101,11 +165,26 @@ const SmallButton = styled.button<{ variant?: 'primary' | 'secondary' }>`
   }
 `;
 
+const NoManualEditMessage = styled.p`
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-style: italic;
+  margin: 0;
+  padding: 0.5rem;
+  text-align: center;
+`;
+
+type EditMode = 'ai' | 'manual';
+
 interface EditableSectionProps {
   children: React.ReactNode;
   sectionLabel: string;
   feedback?: string;
   onFeedbackChange: (feedback: string) => void;
+  // New props for direct editing
+  editableContent?: string;
+  onContentChange?: (content: string) => void;
+  contentType?: 'text' | 'textarea';
 }
 
 export function EditableSection({
@@ -113,31 +192,65 @@ export function EditableSection({
   sectionLabel,
   feedback,
   onFeedbackChange,
+  editableContent,
+  onContentChange,
+  contentType = 'textarea',
 }: EditableSectionProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [editMode, setEditMode] = useState<EditMode>('manual');
   const [localFeedback, setLocalFeedback] = useState(feedback || '');
+  const [localContent, setLocalContent] = useState(editableContent || '');
 
+  // Track if there's a pending direct edit (content differs from original)
+  const hasDirectEdit = editableContent !== undefined && localContent !== editableContent;
   const hasFeedback = !!feedback;
+  const canManualEdit = editableContent !== undefined && onContentChange !== undefined;
 
-  const handleSave = () => {
+  // Sync local content when editableContent prop changes
+  useEffect(() => {
+    if (editableContent !== undefined) {
+      setLocalContent(editableContent);
+    }
+  }, [editableContent]);
+
+  const handleSaveFeedback = () => {
     onFeedbackChange(localFeedback);
+    setIsEditing(false);
+  };
+
+  const handleSaveContent = () => {
+    if (onContentChange) {
+      onContentChange(localContent);
+    }
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     setLocalFeedback(feedback || '');
+    setLocalContent(editableContent || '');
     setIsEditing(false);
   };
 
-  const handleClear = () => {
+  const handleClearFeedback = () => {
     setLocalFeedback('');
     onFeedbackChange('');
     setIsEditing(false);
   };
 
+  // Determine which badge to show
+  const getBadge = () => {
+    if (hasDirectEdit) {
+      return <FeedbackBadge variant="manual">Modified</FeedbackBadge>;
+    }
+    if (hasFeedback) {
+      return <FeedbackBadge variant="ai">AI edit pending</FeedbackBadge>;
+    }
+    return null;
+  };
+
   return (
-    <Container hasFeedback={hasFeedback}>
-      {hasFeedback && <FeedbackBadge>Edit pending</FeedbackBadge>}
+    <Container hasFeedback={hasFeedback} hasDirectEdit={hasDirectEdit}>
+      {getBadge()}
       <EditButton className="edit-button" onClick={() => setIsEditing(!isEditing)}>
         {isEditing ? 'Close' : 'Edit'}
       </EditButton>
@@ -145,23 +258,79 @@ export function EditableSection({
       {children}
 
       {isEditing && (
-        <FeedbackInputContainer>
-          <FeedbackLabel>Feedback for {sectionLabel}</FeedbackLabel>
-          <FeedbackTextarea
-            value={localFeedback}
-            onChange={(e) => setLocalFeedback(e.target.value)}
-            placeholder={`Describe what you'd like to change about this ${sectionLabel.toLowerCase()}...`}
-          />
-          <FeedbackActions>
-            {hasFeedback && (
-              <SmallButton onClick={handleClear}>Clear</SmallButton>
-            )}
-            <SmallButton onClick={handleCancel}>Cancel</SmallButton>
-            <SmallButton variant="primary" onClick={handleSave}>
-              Save Feedback
-            </SmallButton>
-          </FeedbackActions>
-        </FeedbackInputContainer>
+        <EditInputContainer mode={editMode}>
+          <ModeToggle>
+            <ModeButton
+              active={editMode === 'manual'}
+              onClick={() => setEditMode('manual')}
+              disabled={!canManualEdit}
+              title={!canManualEdit ? 'Manual editing not available for this section' : undefined}
+            >
+              Manual Edit
+            </ModeButton>
+            <ModeButton
+              active={editMode === 'ai'}
+              onClick={() => setEditMode('ai')}
+            >
+              AI Suggestions
+            </ModeButton>
+          </ModeToggle>
+
+          {editMode === 'manual' ? (
+            canManualEdit ? (
+              <>
+                <FeedbackLabel>Edit {sectionLabel}</FeedbackLabel>
+                {contentType === 'text' ? (
+                  <ManualEditInput
+                    type="text"
+                    value={localContent}
+                    onChange={(e) => setLocalContent(e.target.value)}
+                    placeholder={`Enter new ${sectionLabel.toLowerCase()}...`}
+                  />
+                ) : (
+                  <ManualEditTextarea
+                    value={localContent}
+                    onChange={(e) => setLocalContent(e.target.value)}
+                    placeholder={`Enter new ${sectionLabel.toLowerCase()}...`}
+                  />
+                )}
+                <FeedbackActions>
+                  <SmallButton onClick={handleCancel}>Cancel</SmallButton>
+                  <SmallButton variant="primary" onClick={handleSaveContent}>
+                    Save Changes
+                  </SmallButton>
+                </FeedbackActions>
+              </>
+            ) : (
+              <>
+                <NoManualEditMessage>
+                  Manual editing is not available for this section. Use AI Suggestions instead.
+                </NoManualEditMessage>
+                <FeedbackActions>
+                  <SmallButton onClick={handleCancel}>Cancel</SmallButton>
+                </FeedbackActions>
+              </>
+            )
+          ) : (
+            <>
+              <FeedbackLabel>AI Suggestions for {sectionLabel}</FeedbackLabel>
+              <FeedbackTextarea
+                value={localFeedback}
+                onChange={(e) => setLocalFeedback(e.target.value)}
+                placeholder={`Describe what you'd like the AI to change about this ${sectionLabel.toLowerCase()}...`}
+              />
+              <FeedbackActions>
+                {hasFeedback && (
+                  <SmallButton onClick={handleClearFeedback}>Clear</SmallButton>
+                )}
+                <SmallButton onClick={handleCancel}>Cancel</SmallButton>
+                <SmallButton variant="primary" onClick={handleSaveFeedback}>
+                  Save Feedback
+                </SmallButton>
+              </FeedbackActions>
+            </>
+          )}
+        </EditInputContainer>
       )}
     </Container>
   );
