@@ -7,6 +7,7 @@ import { OutlineView } from './components/OutlineView';
 import { ManuscriptView } from './components/ManuscriptView';
 import { IllustrationsExport } from './components/IllustrationsExport';
 import { ProjectSidebar } from './components/ProjectSidebar';
+import { LandingPage } from './components/LandingPage';
 import type { WizardStep } from './stores/UIStore';
 
 const AppContainer = styled.div`
@@ -45,10 +46,15 @@ const MenuButton = styled.button`
   }
 `;
 
-const Logo = styled.h1`
+const Logo = styled.h1<{ clickable?: boolean }>`
   font-size: 1.5rem;
   color: var(--primary-color);
   margin: 0;
+  cursor: ${props => props.clickable ? 'pointer' : 'default'};
+
+  &:hover {
+    opacity: ${props => props.clickable ? 0.8 : 1};
+  }
 `;
 
 const ProjectTitle = styled.span`
@@ -62,37 +68,6 @@ const ProjectTitle = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-`;
-
-const EmptyState = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 60vh;
-  text-align: center;
-  color: var(--text-secondary);
-`;
-
-const EmptyStateTitle = styled.h2`
-  color: var(--text-primary);
-  margin-bottom: 0.5rem;
-`;
-
-const CreateButton = styled.button`
-  margin-top: 1.5rem;
-  padding: 0.75rem 2rem;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--primary-hover);
-  }
 `;
 
 const StepperContainer = styled.div`
@@ -217,15 +192,32 @@ export const App = observer(function App() {
   const uiStore = useUIStore();
   const generationStore = useGenerationStore();
 
-  // Load projects on mount
+  // Load projects on mount and restore last session
   useEffect(() => {
-    projectStore.loadProjects();
-  }, [projectStore]);
+    const initializeApp = async () => {
+      await projectStore.loadProjects();
 
-  const handleCreateFirst = async () => {
-    const name = `Storybook ${new Date().toLocaleDateString()}`;
-    await projectStore.createProject(name);
-  };
+      // Try to restore last session
+      const lastProjectId = projectStore.getLastProjectId();
+      if (lastProjectId) {
+        try {
+          await projectStore.loadProject(lastProjectId);
+          // Restore last step if available, otherwise navigate to project state
+          const lastStep = uiStore.getLastStep();
+          if (lastStep) {
+            uiStore.setStep(lastStep);
+          } else {
+            uiStore.navigateToProjectState();
+          }
+        } catch {
+          // Project might have been deleted, clear the stored ID
+          projectStore.clearLastProjectId();
+        }
+      }
+    };
+
+    initializeApp();
+  }, [projectStore, uiStore]);
 
   const renderStep = () => {
     switch (uiStore.currentStep) {
@@ -286,6 +278,12 @@ export const App = observer(function App() {
     }
   };
 
+  const handleLogoClick = () => {
+    if (projectStore.currentProject) {
+      projectStore.setCurrentProject(null);
+    }
+  };
+
   return (
     <AppContainer>
       <ProjectSidebar />
@@ -295,7 +293,13 @@ export const App = observer(function App() {
           <MenuButton onClick={() => uiStore.toggleSidebar()} title="Projects">
             &#9776;
           </MenuButton>
-          <Logo>Storybook Generator</Logo>
+          <Logo
+            clickable={!!projectStore.currentProject}
+            onClick={handleLogoClick}
+            title={projectStore.currentProject ? 'Back to all projects' : ''}
+          >
+            Storybook Generator
+          </Logo>
           {projectStore.currentProject && (
             <ProjectTitle>
               {projectStore.currentProject.outline?.title || projectStore.currentProject.name}
@@ -324,13 +328,7 @@ export const App = observer(function App() {
 
       <MainContent>
         {!projectStore.currentProject ? (
-          <EmptyState>
-            <EmptyStateTitle>Welcome to Storybook Generator</EmptyStateTitle>
-            <p>Create AI-illustrated children's picture books from a simple topic.</p>
-            <CreateButton onClick={handleCreateFirst}>
-              Create Your First Storybook
-            </CreateButton>
-          </EmptyState>
+          <LandingPage />
         ) : (
           renderStep()
         )}

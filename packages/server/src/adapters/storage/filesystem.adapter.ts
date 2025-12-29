@@ -67,7 +67,11 @@ export class FilesystemStorageAdapter implements IStorageAdapter {
             createdAt: project.createdAt,
             updatedAt: project.updatedAt,
             currentStage: project.currentStage,
-            thumbnailPath: project.pageImages[0]?.imagePath,
+            thumbnailPath: project.coverImage?.imagePath || project.pageImages[0]?.imagePath,
+            title: project.outline?.title,
+            hasCoverImage: project.coverImage !== null,
+            hasPageImages: project.pageImages.length > 0,
+            firstPageNumber: project.pageImages[0]?.pageNumber,
           });
         } catch {
           // Skip invalid project directories

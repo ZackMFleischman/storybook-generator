@@ -3,6 +3,8 @@ import { RootStore } from './RootStore';
 
 export type WizardStep = 'topic' | 'outline' | 'manuscript' | 'illustrations';
 
+const LAST_STEP_KEY = 'storybook-generator-last-step';
+
 export class UIStore {
   currentStep: WizardStep = 'topic';
   isSidebarOpen = false;
@@ -11,15 +13,36 @@ export class UIStore {
     makeAutoObservable(this);
   }
 
+  private saveLastStep(step: WizardStep): void {
+    try {
+      localStorage.setItem(LAST_STEP_KEY, step);
+    } catch {
+      // localStorage might not be available
+    }
+  }
+
+  getLastStep(): WizardStep | null {
+    try {
+      const step = localStorage.getItem(LAST_STEP_KEY);
+      if (step && ['topic', 'outline', 'manuscript', 'illustrations'].includes(step)) {
+        return step as WizardStep;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   setStep(step: WizardStep): void {
     this.currentStep = step;
+    this.saveLastStep(step);
   }
 
   nextStep(): void {
     const steps: WizardStep[] = ['topic', 'outline', 'manuscript', 'illustrations'];
     const currentIndex = steps.indexOf(this.currentStep);
     if (currentIndex < steps.length - 1) {
-      this.currentStep = steps[currentIndex + 1];
+      this.setStep(steps[currentIndex + 1]);
     }
   }
 
@@ -27,7 +50,7 @@ export class UIStore {
     const steps: WizardStep[] = ['topic', 'outline', 'manuscript', 'illustrations'];
     const currentIndex = steps.indexOf(this.currentStep);
     if (currentIndex > 0) {
-      this.currentStep = steps[currentIndex - 1];
+      this.setStep(steps[currentIndex - 1]);
     }
   }
 
@@ -63,25 +86,25 @@ export class UIStore {
   }
 
   resetWizard(): void {
-    this.currentStep = 'topic';
+    this.setStep('topic');
   }
 
   navigateToProjectState(): void {
     const project = this.rootStore.projectStore.currentProject;
     if (!project) {
-      this.currentStep = 'topic';
+      this.setStep('topic');
       return;
     }
 
     // Navigate to the furthest completed step
     if (project.pageImages && project.pageImages.length > 0) {
-      this.currentStep = 'illustrations';
+      this.setStep('illustrations');
     } else if (project.manuscript) {
-      this.currentStep = 'manuscript';
+      this.setStep('manuscript');
     } else if (project.outline) {
-      this.currentStep = 'outline';
+      this.setStep('outline');
     } else {
-      this.currentStep = 'topic';
+      this.setStep('topic');
     }
   }
 }

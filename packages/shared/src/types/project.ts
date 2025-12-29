@@ -45,6 +45,10 @@ export interface ProjectSummary {
   updatedAt: string;
   currentStage: Stage;
   thumbnailPath?: string;
+  title?: string;          // Book title from outline (if available)
+  hasCoverImage: boolean;  // Whether a cover image has been generated
+  hasPageImages: boolean;  // Whether any page images have been generated
+  firstPageNumber?: number; // Page number of the first generated page image
 }
 
 export interface CreateProjectRequest {

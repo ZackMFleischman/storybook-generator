@@ -3,6 +3,8 @@ import { Project, ProjectSummary, Outline, Character, PlotPoint, Setting, Manusc
 import { RootStore } from './RootStore';
 import * as api from '../api/client';
 
+const LAST_PROJECT_KEY = 'storybook-generator-last-project';
+
 export class ProjectStore {
   currentProject: Project | null = null;
   projectList: ProjectSummary[] = [];
@@ -10,8 +12,33 @@ export class ProjectStore {
   isSaving = false;
   error: string | null = null;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   constructor(_rootStore: RootStore) {
     makeAutoObservable(this);
+  }
+
+  private saveLastProjectId(projectId: string): void {
+    try {
+      localStorage.setItem(LAST_PROJECT_KEY, projectId);
+    } catch {
+      // localStorage might not be available
+    }
+  }
+
+  getLastProjectId(): string | null {
+    try {
+      return localStorage.getItem(LAST_PROJECT_KEY);
+    } catch {
+      return null;
+    }
+  }
+
+  clearLastProjectId(): void {
+    try {
+      localStorage.removeItem(LAST_PROJECT_KEY);
+    } catch {
+      // localStorage might not be available
+    }
   }
 
   async loadProjects(): Promise<void> {
@@ -46,9 +73,12 @@ export class ProjectStore {
           createdAt: project.createdAt,
           updatedAt: project.updatedAt,
           currentStage: project.currentStage,
+          hasCoverImage: false,
+          hasPageImages: false,
         });
         this.isLoading = false;
       });
+      this.saveLastProjectId(project.id);
       return project;
     } catch (error) {
       runInAction(() => {
@@ -69,6 +99,7 @@ export class ProjectStore {
         this.currentProject = project;
         this.isLoading = false;
       });
+      this.saveLastProjectId(project.id);
     } catch (error) {
       runInAction(() => {
         this.error = String(error);
@@ -84,6 +115,7 @@ export class ProjectStore {
         this.projectList = this.projectList.filter(p => p.id !== projectId);
         if (this.currentProject?.id === projectId) {
           this.currentProject = null;
+          this.clearLastProjectId();
         }
       });
     } catch (error) {
