@@ -13,7 +13,10 @@ A web application that generates illustrated children's picture books from a sim
 
 ### Key Features
 
-- **Iterative Editing**: Users can provide feedback on any section (characters, plot points, pages) and regenerate with changes
+- **Project Management**: Sidebar drawer to create, load, and switch between projects
+- **Resume Progress**: Automatically returns to where you left off when loading a project
+- **Iterative Editing**: Provide feedback on any section and regenerate with changes
+- **AI Response Caching**: Global cache avoids repeated API calls for identical prompts
 - **Age-Appropriate Content**: Supports ages 3-5 (simple vocabulary) and 5-8 (more complex narrative)
 - **Configurable**: Page count, tone keywords, art style, text composition mode
 
@@ -24,7 +27,7 @@ A web application that generates illustrated children's picture books from a sim
 | Frontend | React 18, MobX 6, Emotion (CSS-in-JS), TypeScript, Vite |
 | Backend | Express.js, TypeScript |
 | Text AI | Claude Opus 4.5 via `@anthropic-ai/sdk` |
-| Image AI | Gemini via `@google/genai` |
+| Image AI | Gemini 2.5 Flash via `@google/genai` |
 | PDF | pdf-lib |
 | Testing | Jest |
 
@@ -325,6 +328,28 @@ projects/
         └── references/       # User-uploaded reference images
 ```
 
+### Caching
+
+AI responses are cached globally by prompt hash to avoid redundant API calls:
+
+```
+cache/
+├── text/           # Claude response cache (JSON)
+└── images/         # Gemini image cache (PNG + metadata)
+```
+
+Configure via environment variables:
+- `CACHE_ENABLED` - Enable/disable caching (default: true)
+- `CACHE_TTL_DAYS` - Cache expiration in days (default: 7)
+- `CACHE_PATH` - Cache directory (default: ./cache)
+
+### Debug Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/debug/test-image` | Test image generation with optional `?prompt=` and `?model=` |
+| `GET /api/debug/models` | Show current model configuration |
+
 ## Key Files Reference
 
 | File | Purpose |
@@ -337,8 +362,10 @@ projects/
 | `server/src/adapters/text-generation/claude.adapter.ts` | Claude API integration |
 | `server/src/adapters/image-generation/gemini.adapter.ts` | Gemini API integration |
 | `client/src/stores/RootStore.tsx` | MobX store setup and hooks |
+| `client/src/components/ProjectSidebar.tsx` | Project management drawer |
 | `client/src/components/OutlineView.tsx` | Outline display with editing |
 | `client/src/components/ManuscriptView.tsx` | Manuscript display with editing |
+| `server/src/cache/index.ts` | AI response caching utilities |
 
 ## Styling Guidelines (Emotion)
 

@@ -9,4 +9,7 @@ app.listen(config.port, () => {
   console.log(`Server running on http://localhost:${config.port}`);
   console.log(`Environment: ${config.nodeEnv}`);
   console.log(`Projects path: ${config.projectsPath}`);
+  console.log(`Text model: ${config.defaultTextModel}`);
+  console.log(`Image model: ${config.defaultImageModel}`);
+  console.log(`Cache: ${config.cacheEnabled ? `enabled (${config.cacheTtlDays} day TTL)` : 'disabled'}`);
 });
