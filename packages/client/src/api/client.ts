@@ -51,7 +51,7 @@ export async function getProject(projectId: string): Promise<Project> {
 
 export async function updateProject(projectId: string, updates: Partial<Project>): Promise<Project> {
   return request<Project>(`/projects/${projectId}`, {
-    method: 'PATCH',
+    method: 'PUT',
     body: JSON.stringify(updates),
   });
 }

@@ -340,6 +340,49 @@ projects/
 | `client/src/components/OutlineView.tsx` | Outline display with editing |
 | `client/src/components/ManuscriptView.tsx` | Manuscript display with editing |
 
+## Styling Guidelines (Emotion)
+
+This project uses `@emotion/styled` for CSS-in-JS **without** the Babel plugin. This means some Emotion features are unavailable.
+
+### Avoid Component Selectors
+
+**This will NOT work** (requires `@emotion/babel-plugin`):
+
+```tsx
+const Parent = styled.div`...`;
+const Child = styled.button`
+  ${Parent}:hover & {    // ERROR: Component selector
+    opacity: 1;
+  }
+`;
+```
+
+**Do this instead** - use CSS class selectors:
+
+```tsx
+const Parent = styled.div`
+  &:hover .child-class {
+    opacity: 1;
+  }
+`;
+const Child = styled.button`
+  opacity: 0;
+`;
+
+// In JSX:
+<Parent>
+  <Child className="child-class">...</Child>
+</Parent>
+```
+
+### Safe Patterns
+
+These patterns work without the Babel plugin:
+- Props interpolation: `` background: ${props => props.active ? 'blue' : 'gray'}; ``
+- Self-referencing: `&:hover`, `&::before`, `& > div`
+- CSS class selectors: `& .my-class`, `&:hover .child`
+- Nested elements: `& button`, `& > span`
+
 ## Future Enhancements
 
 The architecture supports:

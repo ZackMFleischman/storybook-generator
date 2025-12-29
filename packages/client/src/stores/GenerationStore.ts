@@ -73,8 +73,15 @@ export class GenerationStore {
         toneKeywords,
       });
 
+      // Update project name to story title
+      if (outline.title) {
+        await api.updateProject(project.id, { name: outline.title });
+      }
+
       runInAction(() => {
+        const newName = outline.title || project.name;
         projectStore.updateCurrentProject({
+          name: newName,
           outline,
           settings: {
             ...project.settings,
@@ -83,6 +90,11 @@ export class GenerationStore {
             toneKeywords: toneKeywords || [],
           },
         });
+        // Update the project list entry too
+        const listEntry = projectStore.projectList.find(p => p.id === project.id);
+        if (listEntry) {
+          listEntry.name = newName;
+        }
         this.setSuccess();
         uiStore.nextStep();
       });
@@ -133,7 +145,7 @@ export class GenerationStore {
   }
 
   async generateIllustrations(): Promise<boolean> {
-    const { projectStore } = this.rootStore;
+    const { projectStore, uiStore } = this.rootStore;
     const project = projectStore.currentProject;
 
     if (!project) {
@@ -158,6 +170,7 @@ export class GenerationStore {
       runInAction(() => {
         projectStore.updateCurrentProject({ pageImages });
         this.setSuccess();
+        uiStore.nextStep();
       });
 
       return true;

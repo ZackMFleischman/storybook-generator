@@ -65,4 +65,23 @@ export class UIStore {
   resetWizard(): void {
     this.currentStep = 'topic';
   }
+
+  navigateToProjectState(): void {
+    const project = this.rootStore.projectStore.currentProject;
+    if (!project) {
+      this.currentStep = 'topic';
+      return;
+    }
+
+    // Navigate to the furthest completed step
+    if (project.pageImages && project.pageImages.length > 0) {
+      this.currentStep = 'illustrations';
+    } else if (project.manuscript) {
+      this.currentStep = 'manuscript';
+    } else if (project.outline) {
+      this.currentStep = 'outline';
+    } else {
+      this.currentStep = 'topic';
+    }
+  }
 }

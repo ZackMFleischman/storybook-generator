@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { TextGenOptions, TextGenerationResponse, TextModelInfo } from '@storybook-generator/shared';
 import { ITextGenerationAdapter } from './text-generation.interface.js';
+import { getCacheKey, getTextCache, setTextCache } from '../../cache/index.js';
 
 export class ClaudeAdapter implements ITextGenerationAdapter {
   private client: Anthropic;
@@ -14,8 +15,18 @@ export class ClaudeAdapter implements ITextGenerationAdapter {
   async generateText(
     systemPrompt: string,
     userPrompt: string,
-    options?: TextGenOptions
+    options?: TextGenOptions & { skipCache?: boolean }
   ): Promise<TextGenerationResponse> {
+    // Check cache first
+    const cacheKey = getCacheKey(this.modelId, systemPrompt, userPrompt);
+    if (!options?.skipCache) {
+      const cached = await getTextCache(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached) as TextGenerationResponse;
+        return parsed;
+      }
+    }
+
     const response = await this.client.messages.create({
       model: this.modelId,
       max_tokens: options?.maxTokens ?? 4096,
@@ -28,7 +39,7 @@ export class ClaudeAdapter implements ITextGenerationAdapter {
     const textContent = response.content.find(c => c.type === 'text');
     const text = textContent?.type === 'text' ? textContent.text : '';
 
-    return {
+    const result: TextGenerationResponse = {
       text,
       usage: {
         inputTokens: response.usage.input_tokens,
@@ -37,6 +48,11 @@ export class ClaudeAdapter implements ITextGenerationAdapter {
       stopReason: response.stop_reason === 'end_turn' ? 'end_turn' :
                   response.stop_reason === 'max_tokens' ? 'max_tokens' : 'end_turn',
     };
+
+    // Store in cache
+    await setTextCache(cacheKey, JSON.stringify(result));
+
+    return result;
   }
 
   async generateStructured<T>(

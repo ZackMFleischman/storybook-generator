@@ -1,6 +1,7 @@
 import { GoogleGenAI, Modality } from '@google/genai';
 import { AspectRatio, ImageGenOptions, GeneratedImage, ImageModelInfo } from '@storybook-generator/shared';
 import { IImageGenerationAdapter } from './image-generation.interface.js';
+import { getCacheKey, getImageCache, setImageCache } from '../../cache/index.js';
 
 export class GeminiAdapter implements IImageGenerationAdapter {
   private client: GoogleGenAI;
@@ -13,9 +14,27 @@ export class GeminiAdapter implements IImageGenerationAdapter {
 
   async generateImage(
     prompt: string,
-    options: ImageGenOptions
+    options: ImageGenOptions & { skipCache?: boolean }
   ): Promise<GeneratedImage> {
     const startTime = Date.now();
+
+    // Check cache first
+    const cacheKey = getCacheKey(this.modelId, prompt, options.aspectRatio);
+    if (!options?.skipCache) {
+      const cached = await getImageCache(cacheKey);
+      if (cached) {
+        return {
+          buffer: cached,
+          mimeType: 'image/png',
+          metadata: {
+            model: this.modelId,
+            aspectRatio: options.aspectRatio,
+            generationTime: 0,
+            cached: true,
+          },
+        };
+      }
+    }
 
     const response = await this.client.models.generateContent({
       model: this.modelId,
@@ -34,6 +53,9 @@ export class GeminiAdapter implements IImageGenerationAdapter {
 
     const imageData = part.inlineData;
     const buffer = Buffer.from(imageData.data!, 'base64');
+
+    // Store in cache
+    await setImageCache(cacheKey, buffer);
 
     return {
       buffer,

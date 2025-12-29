@@ -6,6 +6,7 @@ import { TopicInput } from './components/TopicInput';
 import { OutlineView } from './components/OutlineView';
 import { ManuscriptView } from './components/ManuscriptView';
 import { IllustrationsExport } from './components/IllustrationsExport';
+import { ProjectSidebar } from './components/ProjectSidebar';
 import type { WizardStep } from './stores/UIStore';
 
 const AppContainer = styled.div`
@@ -24,10 +25,74 @@ const Header = styled.header`
   justify-content: space-between;
 `;
 
+const HeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+`;
+
+const MenuButton = styled.button`
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+
+  &:hover {
+    color: var(--primary-color);
+  }
+`;
+
 const Logo = styled.h1`
   font-size: 1.5rem;
   color: var(--primary-color);
   margin: 0;
+`;
+
+const ProjectTitle = styled.span`
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  margin-left: 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--border-color);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  text-align: center;
+  color: var(--text-secondary);
+`;
+
+const EmptyStateTitle = styled.h2`
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+`;
+
+const CreateButton = styled.button`
+  margin-top: 1.5rem;
+  padding: 0.75rem 2rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--primary-hover);
+  }
 `;
 
 const StepperContainer = styled.div`
@@ -120,12 +185,15 @@ export const App = observer(function App() {
   const uiStore = useUIStore();
   const generationStore = useGenerationStore();
 
-  // Create a new project on mount if none exists
+  // Load projects on mount
   useEffect(() => {
-    if (!projectStore.currentProject && !projectStore.isLoading) {
-      projectStore.createProject('New Storybook');
-    }
+    projectStore.loadProjects();
   }, [projectStore]);
+
+  const handleCreateFirst = async () => {
+    const name = `Storybook ${new Date().toLocaleDateString()}`;
+    await projectStore.createProject(name);
+  };
 
   const renderStep = () => {
     switch (uiStore.currentStep) {
@@ -162,26 +230,50 @@ export const App = observer(function App() {
 
   return (
     <AppContainer>
+      <ProjectSidebar />
+
       <Header>
-        <Logo>Storybook Generator</Logo>
-        <StepperContainer>
-          {steps.map((step, index) => (
-            <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
-              <Step
-                active={uiStore.currentStep === step.key}
-                completed={getStepCompleted(step.key)}
-              >
-                <StepNumber>{index + 1}</StepNumber>
-                {step.label}
-              </Step>
-              {index < steps.length - 1 && <StepConnector />}
-            </div>
-          ))}
-        </StepperContainer>
+        <HeaderLeft>
+          <MenuButton onClick={() => uiStore.toggleSidebar()} title="Projects">
+            &#9776;
+          </MenuButton>
+          <Logo>Storybook Generator</Logo>
+          {projectStore.currentProject && (
+            <ProjectTitle>
+              {projectStore.currentProject.outline?.title || projectStore.currentProject.name}
+            </ProjectTitle>
+          )}
+        </HeaderLeft>
+        {projectStore.currentProject && (
+          <StepperContainer>
+            {steps.map((step, index) => (
+              <div key={step.key} style={{ display: 'flex', alignItems: 'center' }}>
+                <Step
+                  active={uiStore.currentStep === step.key}
+                  completed={getStepCompleted(step.key)}
+                >
+                  <StepNumber>{index + 1}</StepNumber>
+                  {step.label}
+                </Step>
+                {index < steps.length - 1 && <StepConnector />}
+              </div>
+            ))}
+          </StepperContainer>
+        )}
       </Header>
 
       <MainContent>
-        {renderStep()}
+        {!projectStore.currentProject ? (
+          <EmptyState>
+            <EmptyStateTitle>Welcome to Storybook Generator</EmptyStateTitle>
+            <p>Create AI-illustrated children's picture books from a simple topic.</p>
+            <CreateButton onClick={handleCreateFirst}>
+              Create Your First Storybook
+            </CreateButton>
+          </EmptyState>
+        ) : (
+          renderStep()
+        )}
       </MainContent>
 
       {generationStore.isGenerating && (

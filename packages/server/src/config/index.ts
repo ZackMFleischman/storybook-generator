@@ -37,6 +37,11 @@ export const config = {
   // Default Models
   defaultTextModel: process.env.DEFAULT_TEXT_MODEL ?? 'claude-opus-4-5-20251101',
   defaultImageModel: process.env.DEFAULT_IMAGE_MODEL ?? 'gemini-2.5-flash-preview-image-generation',
+
+  // Cache Settings
+  cacheEnabled: process.env.CACHE_ENABLED !== 'false',
+  cacheTtlDays: parseInt(process.env.CACHE_TTL_DAYS ?? '7', 10),
+  cachePath: process.env.CACHE_PATH ?? './cache',
 };
 
 export function validateConfig(): void {

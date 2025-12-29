@@ -59,14 +59,14 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' | 'success' }>`
   }
 `;
 
-const ImageGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.5rem;
+const PageList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
   margin-bottom: 2rem;
 `;
 
-const ImageCard = styled.div`
+const PageCard = styled.div`
   background: var(--surface-color);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
@@ -74,18 +74,18 @@ const ImageCard = styled.div`
 `;
 
 const ImageContainer = styled.div`
-  aspect-ratio: 3/4;
   background: var(--background-color);
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  padding: 1rem;
 `;
 
 const Image = styled.img`
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
 `;
 
 const PlaceholderImage = styled.div`
@@ -94,20 +94,38 @@ const PlaceholderImage = styled.div`
   padding: 2rem;
 `;
 
-const ImageInfo = styled.div`
-  padding: 1rem;
+const PageInfo = styled.div`
+  padding: 1.5rem;
   border-top: 1px solid var(--border-color);
+`;
+
+const PageHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
 `;
 
 const PageLabel = styled.div`
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 0.25rem;
+  font-size: 1rem;
 `;
 
-const ImageMeta = styled.div`
+const PageMeta = styled.div`
   font-size: 0.75rem;
   color: var(--text-secondary);
+`;
+
+const PageText = styled.div`
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--background-color);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--primary-color);
+  font-style: italic;
 `;
 
 const EmptyState = styled.div`
@@ -260,31 +278,39 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
         </SuccessMessage>
       )}
 
-      <ImageGrid>
+      <PageList>
         {pageImages
           .slice()
           .sort((a: PageImage, b: PageImage) => a.pageNumber - b.pageNumber)
-          .map((pageImage: PageImage) => (
-            <ImageCard key={pageImage.pageNumber}>
-              <ImageContainer>
-                {project ? (
-                  <Image
-                    src={getImageUrl(project.id, 'pages', `page-${pageImage.pageNumber}`)}
-                    alt={`Page ${pageImage.pageNumber}`}
-                  />
-                ) : (
-                  <PlaceholderImage>No image</PlaceholderImage>
-                )}
-              </ImageContainer>
-              <ImageInfo>
-                <PageLabel>Page {pageImage.pageNumber}</PageLabel>
-                <ImageMeta>
-                  {pageImage.hasTextBaked ? 'Text rendered' : 'Illustration only'}
-                </ImageMeta>
-              </ImageInfo>
-            </ImageCard>
-          ))}
-      </ImageGrid>
+          .map((pageImage: PageImage) => {
+            const manuscriptPage = manuscript?.pages.find(p => p.pageNumber === pageImage.pageNumber);
+            return (
+              <PageCard key={pageImage.pageNumber}>
+                <ImageContainer>
+                  {project ? (
+                    <Image
+                      src={getImageUrl(project.id, 'pages', `page-${pageImage.pageNumber}`)}
+                      alt={`Page ${pageImage.pageNumber}`}
+                    />
+                  ) : (
+                    <PlaceholderImage>No image</PlaceholderImage>
+                  )}
+                </ImageContainer>
+                <PageInfo>
+                  <PageHeader>
+                    <PageLabel>Page {pageImage.pageNumber}</PageLabel>
+                    <PageMeta>
+                      {pageImage.hasTextBaked ? 'Text in image' : 'Text overlay'}
+                    </PageMeta>
+                  </PageHeader>
+                  {manuscriptPage?.text && (
+                    <PageText>{manuscriptPage.text}</PageText>
+                  )}
+                </PageInfo>
+              </PageCard>
+            );
+          })}
+      </PageList>
 
       <ExportSection>
         <ExportInfo>
