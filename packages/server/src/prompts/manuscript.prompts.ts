@@ -28,7 +28,7 @@ For each page, provide:
    - Setting details visible in this scene
    - Mood and atmosphere
    - Composition suggestions (close-up, wide shot, etc.)
-   - Important: Be specific about character appearances using the outline's physical descriptions
+   - CRITICAL: Reference each character's physical appearance from the outline (colors, clothing, features) to maintain visual consistency across all pages
 
 3. mood: The emotional tone of this page
 4. action: What is happening (for image generation)

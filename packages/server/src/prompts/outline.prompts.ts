@@ -31,7 +31,7 @@ You must respond with a valid JSON object in this exact format:
       "name": "Character Name",
       "role": "protagonist",
       "description": "Brief personality and motivation description",
-      "physicalDescription": "Detailed visual appearance for illustration",
+      "physicalDescription": "DETAILED visual appearance for illustration consistency: specific colors (hair, eyes, skin tone), clothing with exact colors and style, distinctive features, body type/size, any accessories. Be very specific so the character looks identical across all illustrations.",
       "age": "optional age or age descriptor"
     }
   ],

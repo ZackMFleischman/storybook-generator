@@ -26,9 +26,21 @@ export function getIllustrationPrompt(context: IllustrationPromptContext): strin
 
   let prompt = `Create a children's book illustration for ages ${targetAge}.
 
-Art Style: ${artStyleKeywords.join(', ')}, suitable for a children's picture book, warm and inviting colors, professional quality illustration.
+Art Style: ${artStyleKeywords.join(', ')}, suitable for a children's picture book, warm and inviting colors, professional quality illustration.`;
 
-Scene Description:
+  // Add character reference section FIRST for consistency priority
+  if (pageCharacters.length > 0) {
+    prompt += `\n\n=== CHARACTER REFERENCE (MUST FOLLOW EXACTLY) ===
+These are the official character designs. You MUST depict each character EXACTLY as described below to maintain visual consistency throughout the book:`;
+    for (const char of pageCharacters) {
+      prompt += `\n\n${char.name.toUpperCase()}:
+${char.physicalDescription}`;
+    }
+    prompt += `\n\n=== END CHARACTER REFERENCE ===
+CRITICAL: The character descriptions above are the canonical reference. Every detail (colors, clothing, features, proportions) must match exactly.`;
+  }
+
+  prompt += `\n\nScene Description:
 ${page.illustrationDescription}
 
 Mood: ${page.mood}
@@ -38,13 +50,6 @@ Setting:
 - Location: ${setting.location}
 - Atmosphere: ${setting.atmosphere}
 - Visual Details: ${setting.visualDetails}`;
-
-  if (pageCharacters.length > 0) {
-    prompt += `\n\nCharacters in this scene:`;
-    for (const char of pageCharacters) {
-      prompt += `\n- ${char.name}: ${char.physicalDescription}`;
-    }
-  }
 
   if (includeTextInImage && page.text) {
     prompt += `\n\nTEXT TO INCLUDE IN THE IMAGE:
@@ -66,7 +71,8 @@ IMPORTANT: The text is essential - it must be included and fully readable.`;
 - Age-appropriate and child-friendly
 - Warm, inviting, and not scary
 - Professional picture book quality
-- Cohesive with a consistent art style`;
+- Cohesive with a consistent art style
+- Characters MUST match their reference descriptions exactly (same colors, clothing, features, proportions on every page)`;
 
   return prompt;
 }
