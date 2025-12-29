@@ -210,12 +210,13 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
     const url = await generationStore.exportPdf();
     if (url) {
       setDownloadUrl(url);
-    }
-  };
-
-  const handleDownload = () => {
-    if (downloadUrl) {
-      window.open(downloadUrl, '_blank');
+      // Auto-download the PDF
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${project?.name || 'storybook'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   };
 
@@ -271,9 +272,9 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
 
       {downloadUrl && (
         <SuccessMessage>
-          <span>PDF generated successfully!</span>
-          <Button variant="success" onClick={handleDownload}>
-            Download PDF
+          <span>PDF downloaded!</span>
+          <Button variant="success" onClick={() => window.open(downloadUrl, '_blank')}>
+            Download Again
           </Button>
         </SuccessMessage>
       )}
