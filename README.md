@@ -6,16 +6,17 @@ A web application that generates illustrated children's picture books from a sim
 
 ### What It Does
 
-1. **Topic → Outline**: User enters a topic (e.g., "a curious rabbit who learns to share"), AI generates a story outline with characters, setting, and plot points
+1. **Topic → Outline**: User enters a topic (e.g., "a curious rabbit who learns to share"), AI generates a story outline with characters, setting, plot points, and cover descriptions
 2. **Outline → Manuscript**: AI expands the outline into page-by-page text with illustration descriptions
-3. **Manuscript → Illustrations**: AI generates images for each page based on the illustration descriptions
-4. **Export**: Combine everything into a downloadable PDF
+3. **Manuscript → Illustrations**: AI generates front cover, all page illustrations, and back cover automatically
+4. **Export**: Combine everything (cover + pages + back cover) into a downloadable PDF
 
 ### Key Features
 
 - **Project Management**: Sidebar drawer to create, load, and switch between projects
 - **Resume Progress**: Automatically returns to where you left off when loading a project
 - **Iterative Editing**: Provide feedback on any section and regenerate with changes
+- **Cover Generation**: Automatic front cover (with title) and back cover (with blurb) generation
 - **AI Response Caching**: Global cache avoids repeated API calls for identical prompts
 - **Age-Appropriate Content**: Supports ages 3-5 (simple vocabulary) and 5-8 (more complex narrative)
 - **Configurable**: Page count, tone keywords, art style, text composition mode
@@ -99,6 +100,10 @@ interface Project {
   outline: Outline | null;
   manuscript: Manuscript | null;
   pageImages: PageImage[];
+
+  // Cover images (generated with illustrations)
+  coverImage: PageImage | null;
+  backCoverImage: PageImage | null;
 }
 
 interface ProjectSettings {
@@ -126,6 +131,11 @@ interface Outline {
   characters: Character[];
   setting: Setting;
   plotPoints: PlotPoint[];
+
+  // Cover content
+  coverDescription: string;          // Front cover illustration description
+  backCoverDescription: string;      // Back cover illustration description
+  backCoverBlurb: string;            // Marketing blurb for back cover
 }
 
 interface Character {
@@ -179,6 +189,7 @@ interface PageImage {
   generatedAt: string;
   modelUsed: string;
   aspectRatio: AspectRatio;
+  imageType?: 'page' | 'cover' | 'back-cover';  // Distinguish cover images
 }
 ```
 
@@ -211,6 +222,7 @@ interface PageImage {
 
 #### PDF Export Behavior
 - **Auto-download**: Clicking "Export as PDF" automatically downloads the file
+- **Cover pages**: Front cover is first page, back cover is last page (if generated)
 - **Full-bleed pages**: Each PDF page is sized exactly to match its image dimensions (no letterboxing or margins)
 - **Format detection**: Image format (PNG/JPEG) is detected from file content, not extension
 
@@ -329,6 +341,7 @@ projects/
     ├── project.json          # Project metadata and content
     └── images/
         ├── pages/            # Generated page illustrations
+        ├── cover/            # Front and back cover images
         ├── composed/         # Pages with text overlaid
         └── references/       # User-uploaded reference images
 ```
