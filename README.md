@@ -206,8 +206,13 @@ interface PageImage {
 ### Export
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/export/:projectId/pdf` | Generate PDF |
+| POST | `/api/export/:projectId/pdf` | Generate PDF (auto-downloads on client) |
 | GET | `/api/export/:projectId/exports/:exportId` | Download PDF |
+
+#### PDF Export Behavior
+- **Auto-download**: Clicking "Export as PDF" automatically downloads the file
+- **Full-bleed pages**: Each PDF page is sized exactly to match its image dimensions (no letterboxing or margins)
+- **Format detection**: Image format (PNG/JPEG) is detected from file content, not extension
 
 ### Images
 | Method | Endpoint | Description |
@@ -359,6 +364,7 @@ Configure via environment variables:
 | `server/src/services/outline.service.ts` | Outline generation logic |
 | `server/src/services/manuscript.service.ts` | Manuscript generation logic |
 | `server/src/services/illustration.service.ts` | Image generation logic |
+| `server/src/services/export.service.ts` | PDF export with pdf-lib |
 | `server/src/adapters/text-generation/claude.adapter.ts` | Claude API integration |
 | `server/src/adapters/image-generation/gemini.adapter.ts` | Gemini API integration |
 | `client/src/stores/RootStore.tsx` | MobX store setup and hooks |
