@@ -12,6 +12,9 @@ build/
 # Project storage (user data)
 projects/
 
+# AI response cache
+cache/
+
 # IDE
 .idea/
 .vscode/
