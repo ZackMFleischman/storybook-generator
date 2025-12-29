@@ -10,6 +10,9 @@ export interface OutlineFeedback {
   setting?: string;
   characters: Map<string, string>;
   plotPoints: Map<string, string>;
+  coverDescription?: string;
+  backCoverDescription?: string;
+  backCoverBlurb?: string;
 }
 
 export interface ManuscriptFeedback {
@@ -71,6 +74,18 @@ export class EditStore {
     }
   }
 
+  setCoverDescriptionFeedback(feedback: string): void {
+    this.outlineFeedback.coverDescription = feedback || undefined;
+  }
+
+  setBackCoverDescriptionFeedback(feedback: string): void {
+    this.outlineFeedback.backCoverDescription = feedback || undefined;
+  }
+
+  setBackCoverBlurbFeedback(feedback: string): void {
+    this.outlineFeedback.backCoverBlurb = feedback || undefined;
+  }
+
   // Manuscript feedback methods
   setManuscriptOverallFeedback(feedback: string): void {
     this.manuscriptFeedback.overall = feedback || undefined;
@@ -93,7 +108,10 @@ export class EditStore {
       this.outlineFeedback.theme ||
       this.outlineFeedback.setting ||
       this.outlineFeedback.characters.size > 0 ||
-      this.outlineFeedback.plotPoints.size > 0
+      this.outlineFeedback.plotPoints.size > 0 ||
+      this.outlineFeedback.coverDescription ||
+      this.outlineFeedback.backCoverDescription ||
+      this.outlineFeedback.backCoverBlurb
     );
   }
 
@@ -113,6 +131,9 @@ export class EditStore {
     if (this.outlineFeedback.setting) count++;
     count += this.outlineFeedback.characters.size;
     count += this.outlineFeedback.plotPoints.size;
+    if (this.outlineFeedback.coverDescription) count++;
+    if (this.outlineFeedback.backCoverDescription) count++;
+    if (this.outlineFeedback.backCoverBlurb) count++;
     return count;
   }
 
@@ -163,6 +184,9 @@ export class EditStore {
         setting: this.outlineFeedback.setting,
         characters: Object.fromEntries(this.outlineFeedback.characters),
         plotPoints: Object.fromEntries(this.outlineFeedback.plotPoints),
+        coverDescription: this.outlineFeedback.coverDescription,
+        backCoverDescription: this.outlineFeedback.backCoverDescription,
+        backCoverBlurb: this.outlineFeedback.backCoverBlurb,
       };
 
       const outline = await api.refineOutline({

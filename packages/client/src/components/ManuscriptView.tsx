@@ -166,6 +166,59 @@ const MetaLabel = styled.span`
   margin-bottom: 0.25rem;
 `;
 
+const CoverInfoCard = styled.div`
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+`;
+
+const CoverInfoTitle = styled.h3`
+  color: var(--text-primary);
+  font-size: 1.125rem;
+  margin: 0 0 1rem;
+`;
+
+const BookTitle = styled.h1`
+  color: var(--primary-color);
+  font-size: 1.75rem;
+  margin: 0 0 0.5rem;
+`;
+
+const BookSubtitle = styled.p`
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 0;
+`;
+
+const CoverSection = styled.div`
+  background: var(--background-color);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+`;
+
+const CoverLabel = styled.span`
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+`;
+
+const CoverText = styled.p`
+  color: var(--text-primary);
+  margin: 0.5rem 0 0;
+  line-height: 1.6;
+  font-size: 0.875rem;
+`;
+
+const CoverGrid = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`;
+
 const MetaValue = styled.span`
   color: var(--text-primary);
   font-size: 0.875rem;
@@ -252,7 +305,13 @@ export const ManuscriptView = observer(function ManuscriptView() {
   };
 
   const handleApplyChanges = async () => {
-    await editStore.applyManuscriptFeedback();
+    // Apply outline feedback first (for cover edits) then manuscript feedback
+    if (editStore.hasOutlineFeedback) {
+      await editStore.applyOutlineFeedback();
+    }
+    if (editStore.hasManuscriptFeedback) {
+      await editStore.applyManuscriptFeedback();
+    }
   };
 
   return (
@@ -268,7 +327,7 @@ export const ManuscriptView = observer(function ManuscriptView() {
           <Button variant="secondary" onClick={() => uiStore.previousStep()}>
             Back
           </Button>
-          <Button onClick={handleGenerateIllustrations} disabled={isLoading || editStore.hasManuscriptFeedback}>
+          <Button onClick={handleGenerateIllustrations} disabled={isLoading || editStore.hasManuscriptFeedback || editStore.hasOutlineFeedback}>
             {isLoading ? 'Generating...' : 'Generate Illustrations'}
           </Button>
         </ButtonGroup>
@@ -289,6 +348,58 @@ export const ManuscriptView = observer(function ManuscriptView() {
           </OverallFeedbackText>
         </OverallFeedbackCard>
       </EditableSection>
+
+      {/* Cover Info Section */}
+      {outline && (
+        <CoverInfoCard>
+          <CoverInfoTitle>Book Cover Info</CoverInfoTitle>
+          <CoverGrid>
+            <EditableSection
+              sectionLabel="Book Title"
+              feedback={editStore.outlineFeedback.title}
+              onFeedbackChange={(f) => editStore.setOutlineTitleFeedback(f)}
+            >
+              <CoverSection>
+                <BookTitle>{outline.title}</BookTitle>
+                {outline.subtitle && <BookSubtitle>{outline.subtitle}</BookSubtitle>}
+              </CoverSection>
+            </EditableSection>
+
+            <EditableSection
+              sectionLabel="Front Cover Description"
+              feedback={editStore.outlineFeedback.coverDescription}
+              onFeedbackChange={(f) => editStore.setCoverDescriptionFeedback(f)}
+            >
+              <CoverSection>
+                <CoverLabel>Front Cover</CoverLabel>
+                <CoverText>{outline.coverDescription}</CoverText>
+              </CoverSection>
+            </EditableSection>
+
+            <EditableSection
+              sectionLabel="Back Cover Description"
+              feedback={editStore.outlineFeedback.backCoverDescription}
+              onFeedbackChange={(f) => editStore.setBackCoverDescriptionFeedback(f)}
+            >
+              <CoverSection>
+                <CoverLabel>Back Cover</CoverLabel>
+                <CoverText>{outline.backCoverDescription}</CoverText>
+              </CoverSection>
+            </EditableSection>
+
+            <EditableSection
+              sectionLabel="Back Cover Blurb"
+              feedback={editStore.outlineFeedback.backCoverBlurb}
+              onFeedbackChange={(f) => editStore.setBackCoverBlurbFeedback(f)}
+            >
+              <CoverSection>
+                <CoverLabel>Blurb</CoverLabel>
+                <CoverText style={{ fontStyle: 'italic' }}>"{outline.backCoverBlurb}"</CoverText>
+              </CoverSection>
+            </EditableSection>
+          </CoverGrid>
+        </CoverInfoCard>
+      )}
 
       <PageGrid>
         {manuscript.pages.map((page: ManuscriptPage) => (
@@ -338,12 +449,12 @@ export const ManuscriptView = observer(function ManuscriptView() {
         ))}
       </PageGrid>
 
-      {editStore.hasManuscriptFeedback && (
+      {(editStore.hasManuscriptFeedback || editStore.hasOutlineFeedback) && (
         <FloatingBar>
           <FeedbackCount>
-            {editStore.manuscriptFeedbackCount} pending edit{editStore.manuscriptFeedbackCount !== 1 ? 's' : ''}
+            {editStore.manuscriptFeedbackCount + editStore.outlineFeedbackCount} pending edit{(editStore.manuscriptFeedbackCount + editStore.outlineFeedbackCount) !== 1 ? 's' : ''}
           </FeedbackCount>
-          <Button variant="secondary" onClick={() => editStore.clearManuscriptFeedback()}>
+          <Button variant="secondary" onClick={() => { editStore.clearManuscriptFeedback(); editStore.clearOutlineFeedback(); }}>
             Clear All
           </Button>
           <Button variant="warning" onClick={handleApplyChanges} disabled={isLoading}>

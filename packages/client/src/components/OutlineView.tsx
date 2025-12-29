@@ -274,13 +274,22 @@ export const OutlineView = observer(function OutlineView() {
       )}
 
       <EditableSection
+        sectionLabel="Title"
+        feedback={editStore.outlineFeedback.title}
+        onFeedbackChange={(f) => editStore.setOutlineTitleFeedback(f)}
+      >
+        <Card>
+          <StoryTitle>{outline.title}</StoryTitle>
+          {outline.subtitle && <StorySubtitle>{outline.subtitle}</StorySubtitle>}
+        </Card>
+      </EditableSection>
+
+      <EditableSection
         sectionLabel="Story Overview"
         feedback={editStore.outlineFeedback.overall}
         onFeedbackChange={(f) => editStore.setOutlineOverallFeedback(f)}
       >
         <Card>
-          <StoryTitle>{outline.title}</StoryTitle>
-          {outline.subtitle && <StorySubtitle>{outline.subtitle}</StorySubtitle>}
           <Synopsis>{outline.synopsis}</Synopsis>
           <Theme>
             <Label>Theme: </Label>
@@ -288,6 +297,50 @@ export const OutlineView = observer(function OutlineView() {
           </Theme>
         </Card>
       </EditableSection>
+
+      <Card>
+        <CardTitle>Cover Content</CardTitle>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <EditableSection
+            sectionLabel="Front Cover Description"
+            feedback={editStore.outlineFeedback.coverDescription}
+            onFeedbackChange={(f) => editStore.setCoverDescriptionFeedback(f)}
+          >
+            <div style={{ background: 'var(--background-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+              <Label>Front Cover</Label>
+              <p style={{ color: 'var(--text-primary)', margin: '0.5rem 0 0', lineHeight: '1.6' }}>
+                {outline.coverDescription}
+              </p>
+            </div>
+          </EditableSection>
+
+          <EditableSection
+            sectionLabel="Back Cover Description"
+            feedback={editStore.outlineFeedback.backCoverDescription}
+            onFeedbackChange={(f) => editStore.setBackCoverDescriptionFeedback(f)}
+          >
+            <div style={{ background: 'var(--background-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+              <Label>Back Cover</Label>
+              <p style={{ color: 'var(--text-primary)', margin: '0.5rem 0 0', lineHeight: '1.6' }}>
+                {outline.backCoverDescription}
+              </p>
+            </div>
+          </EditableSection>
+
+          <EditableSection
+            sectionLabel="Back Cover Blurb"
+            feedback={editStore.outlineFeedback.backCoverBlurb}
+            onFeedbackChange={(f) => editStore.setBackCoverBlurbFeedback(f)}
+          >
+            <div style={{ background: 'var(--background-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+              <Label>Blurb</Label>
+              <p style={{ color: 'var(--text-primary)', margin: '0.5rem 0 0', lineHeight: '1.6', fontStyle: 'italic' }}>
+                "{outline.backCoverBlurb}"
+              </p>
+            </div>
+          </EditableSection>
+        </div>
+      </Card>
 
       <Card>
         <CardTitle>Characters</CardTitle>
