@@ -8,6 +8,7 @@ import { ManuscriptView } from './components/ManuscriptView';
 import { IllustrationsExport } from './components/IllustrationsExport';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { LandingPage } from './components/LandingPage';
+import { getImageUrl } from './api/client';
 import type { WizardStep } from './stores/UIStore';
 
 const AppContainer = styled.div`
@@ -129,12 +130,39 @@ const LoadingOverlay = styled.div`
   z-index: 1000;
 `;
 
-const LoadingCard = styled.div`
+const LoadingCard = styled.div<{ hasPreview?: boolean }>`
   background: var(--surface-color);
-  padding: 2rem 3rem;
+  padding: 2rem;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   text-align: center;
+  max-width: ${props => props.hasPreview ? '500px' : '300px'};
+  width: 90%;
+`;
+
+const ImagePreview = styled.div`
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--background-color);
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const PreviewImage = styled.img`
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+`;
+
+const PreviewLabel = styled.div`
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 `;
 
 const Spinner = styled.div`
@@ -336,9 +364,40 @@ export const App = observer(function App() {
 
       {generationStore.isGenerating && (
         <LoadingOverlay>
-          <LoadingCard>
-            <Spinner />
-            <p style={{ margin: 0, color: 'var(--text-primary)' }}>
+          <LoadingCard hasPreview={!!generationStore.latestImage}>
+            {generationStore.latestImage && projectStore.currentProject && (
+              <ImagePreview>
+                <PreviewImage
+                  src={getImageUrl(
+                    projectStore.currentProject.id,
+                    generationStore.latestImage.imageType === 'page' ? 'pages' : 'cover',
+                    generationStore.latestImage.imageType === 'page'
+                      ? `page-${generationStore.latestImage.image.pageNumber}`
+                      : generationStore.latestImage.imageType === 'cover'
+                        ? 'front'
+                        : 'back'
+                  )}
+                  alt={
+                    generationStore.latestImage.imageType === 'cover'
+                      ? 'Front Cover'
+                      : generationStore.latestImage.imageType === 'back-cover'
+                        ? 'Back Cover'
+                        : `Page ${generationStore.latestImage.image.pageNumber}`
+                  }
+                />
+              </ImagePreview>
+            )}
+            {!generationStore.latestImage && <Spinner />}
+            <PreviewLabel>
+              {generationStore.latestImage
+                ? generationStore.latestImage.imageType === 'cover'
+                  ? 'Front Cover Complete'
+                  : generationStore.latestImage.imageType === 'back-cover'
+                    ? 'Back Cover Complete'
+                    : `Page ${generationStore.latestImage.image.pageNumber} Complete`
+                : 'Starting...'}
+            </PreviewLabel>
+            <p style={{ margin: 0, color: 'var(--text-primary)', fontWeight: 500 }}>
               {generationStore.currentTask}
             </p>
             {generationStore.totalSteps > 1 && (

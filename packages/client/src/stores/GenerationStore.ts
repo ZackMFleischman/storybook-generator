@@ -1,6 +1,6 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { RootStore } from './RootStore';
-import { TargetAge } from '@storybook-generator/shared';
+import { TargetAge, PageImage } from '@storybook-generator/shared';
 import * as api from '../api/client';
 
 export type GenerationStatus = 'idle' | 'generating' | 'success' | 'error';
@@ -11,6 +11,8 @@ export class GenerationStore {
   progress: number = 0;
   totalSteps: number = 0;
   error: string | null = null;
+  // Track the latest generated image for live preview
+  latestImage: { image: PageImage; imageType: 'cover' | 'page' | 'back-cover' } | null = null;
 
   constructor(private rootStore: RootStore) {
     makeAutoObservable(this);
@@ -22,6 +24,7 @@ export class GenerationStore {
     this.progress = 0;
     this.totalSteps = total;
     this.error = null;
+    this.latestImage = null;
   }
 
   private setSuccess(): void {
@@ -29,6 +32,7 @@ export class GenerationStore {
     this.currentTask = '';
     this.progress = 0;
     this.totalSteps = 0;
+    this.latestImage = null;
   }
 
   private setError(message: string): void {
@@ -42,10 +46,24 @@ export class GenerationStore {
     this.progress = 0;
     this.totalSteps = 0;
     this.error = null;
+    this.latestImage = null;
   }
 
   get isGenerating(): boolean {
     return this.status === 'generating';
+  }
+
+  // Public methods for use by other stores (e.g., EditStore for refinement)
+  startTask(taskName: string): void {
+    this.setGenerating(taskName);
+  }
+
+  completeTask(): void {
+    this.setSuccess();
+  }
+
+  failTask(error: string): void {
+    this.setError(error);
   }
 
   async generateOutline(
@@ -62,7 +80,7 @@ export class GenerationStore {
       return false;
     }
 
-    this.setGenerating('Generating story outline...');
+    this.setGenerating(`Generating ${pageCount}-page story outline with Claude...`);
 
     try {
       const outline = await api.generateOutline({
@@ -123,7 +141,8 @@ export class GenerationStore {
       return false;
     }
 
-    this.setGenerating('Generating manuscript pages...');
+    const pageCount = project.outline.plotPoints.length;
+    this.setGenerating(`Writing ${pageCount}-page manuscript with Claude...`);
 
     try {
       const manuscript = await api.generateManuscript({
@@ -165,8 +184,9 @@ export class GenerationStore {
       return false;
     }
 
-    const totalPages = project.manuscript.pages.length;
-    this.setGenerating('Starting illustration generation...', totalPages);
+    // Total steps = cover + pages + back cover
+    const totalSteps = project.manuscript.pages.length + 2;
+    this.setGenerating(`Generating ${totalSteps} illustrations with Gemini...`, totalSteps);
 
     try {
       const pageImages = await api.generateAllPagesWithProgress(
@@ -178,10 +198,36 @@ export class GenerationStore {
           runInAction(() => {
             this.updateProgress(current, total, message);
           });
+        },
+        (image: PageImage, imageType: 'cover' | 'page' | 'back-cover') => {
+          // Update project store incrementally as each image completes
+          runInAction(() => {
+            // Track latest image for live preview
+            this.latestImage = { image, imageType };
+
+            if (imageType === 'cover') {
+              projectStore.updateCurrentProject({ coverImage: image });
+            } else if (imageType === 'back-cover') {
+              projectStore.updateCurrentProject({ backCoverImage: image });
+            } else {
+              // Add page image to the array
+              const currentImages = projectStore.currentProject?.pageImages || [];
+              const existingIndex = currentImages.findIndex(p => p.pageNumber === image.pageNumber);
+              let updatedImages: PageImage[];
+              if (existingIndex >= 0) {
+                updatedImages = [...currentImages];
+                updatedImages[existingIndex] = image;
+              } else {
+                updatedImages = [...currentImages, image].sort((a, b) => a.pageNumber - b.pageNumber);
+              }
+              projectStore.updateCurrentProject({ pageImages: updatedImages });
+            }
+          });
         }
       );
 
       runInAction(() => {
+        // Final update with complete pageImages array (covers were already updated)
         projectStore.updateCurrentProject({ pageImages });
         this.setSuccess();
         uiStore.nextStep();
@@ -205,7 +251,7 @@ export class GenerationStore {
       return null;
     }
 
-    this.setGenerating('Creating PDF...');
+    this.setGenerating('Assembling PDF storybook...');
 
     try {
       const result = await api.exportPdf({

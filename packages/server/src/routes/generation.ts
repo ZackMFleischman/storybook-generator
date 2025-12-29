@@ -136,9 +136,15 @@ export function createGenerationRouter(
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
 
-        const pageImages = await illustrationService.generateAllPages(request, (current, total, message) => {
-          res.write(`data: ${JSON.stringify({ type: 'progress', current, total, message })}\n\n`);
-        });
+        const pageImages = await illustrationService.generateAllPages(
+          request,
+          (current, total, message) => {
+            res.write(`data: ${JSON.stringify({ type: 'progress', current, total, message })}\n\n`);
+          },
+          (image, imageType) => {
+            res.write(`data: ${JSON.stringify({ type: 'imageComplete', image, imageType })}\n\n`);
+          }
+        );
 
         res.write(`data: ${JSON.stringify({ type: 'complete', data: pageImages })}\n\n`);
         res.end();

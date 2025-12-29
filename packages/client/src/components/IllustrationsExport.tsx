@@ -352,53 +352,6 @@ const SmallButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger'
   }
 `;
 
-const LoadingOverlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-`;
-
-const LoadingCard = styled.div`
-  background: var(--surface-color);
-  border-radius: var(--radius-lg);
-  padding: 2rem 3rem;
-  text-align: center;
-  box-shadow: var(--shadow-lg);
-`;
-
-const LoadingTitle = styled.h3`
-  color: var(--text-primary);
-  margin: 0 0 0.5rem;
-`;
-
-const LoadingText = styled.p`
-  color: var(--text-secondary);
-  margin: 0;
-`;
-
-const Spinner = styled.div`
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--border-color);
-  border-top-color: var(--primary-color);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 1rem;
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
 
 export const IllustrationsExport = observer(function IllustrationsExport() {
   const projectStore = useProjectStore();
@@ -780,16 +733,7 @@ export const IllustrationsExport = observer(function IllustrationsExport() {
         />
       )}
 
-      {/* Loading Overlay during refinement */}
-      {isRefining && (
-        <LoadingOverlay>
-          <LoadingCard>
-            <Spinner />
-            <LoadingTitle>Regenerating Illustration</LoadingTitle>
-            <LoadingText>This may take a moment...</LoadingText>
-          </LoadingCard>
-        </LoadingOverlay>
-      )}
+      {/* Loading overlay is now handled globally in App.tsx */}
     </Container>
   );
 });

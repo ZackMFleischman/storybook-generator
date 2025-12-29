@@ -2,6 +2,7 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { AspectRatio, ImageGenOptions, GeneratedImage, ImageModelInfo, ReferenceImage } from '@storybook-generator/shared';
 import { IImageGenerationAdapter } from './image-generation.interface.js';
 import { getCacheKey, getImageCache, setImageCache } from '../../cache/index.js';
+import { logger } from '../../utils/logger.js';
 
 export class GeminiAdapter implements IImageGenerationAdapter {
   private client: GoogleGenAI;
@@ -17,6 +18,7 @@ export class GeminiAdapter implements IImageGenerationAdapter {
   async createSession(projectId: string): Promise<string> {
     const sessionId = `gen-${projectId}-${Date.now()}`;
     this.messageCounters.set(sessionId, 0);
+    logger.gemini.session.created(sessionId);
     return sessionId;
   }
 
@@ -34,12 +36,12 @@ export class GeminiAdapter implements IImageGenerationAdapter {
     const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
 
     // Add reference images FIRST (so the model sees them before the prompt)
+    if (referenceImages.length > 0) {
+      logger.gemini.withReferences(referenceImages.length);
+    }
+
     for (const ref of referenceImages) {
       const base64Data = ref.buffer.toString('base64');
-      console.log(`[Gemini] Adding reference image: ${ref.label}`);
-      console.log(`  - Type: ${ref.type}, MimeType: ${ref.mimeType}`);
-      console.log(`  - Buffer size: ${ref.buffer.length} bytes`);
-      console.log(`  - Base64 length: ${base64Data.length} chars`);
 
       parts.push({ text: `[Reference - ${ref.type}: ${ref.label}]` });
       parts.push({
@@ -49,8 +51,6 @@ export class GeminiAdapter implements IImageGenerationAdapter {
         },
       });
     }
-
-    console.log(`[Gemini] Total parts being sent: ${parts.length} (${referenceImages.length} images + text labels + prompt)`);
 
     // Add the main prompt last
     parts.push({ text: prompt });
@@ -78,6 +78,7 @@ export class GeminiAdapter implements IImageGenerationAdapter {
     }
 
     const buffer = Buffer.from(imagePart.inlineData.data!, 'base64');
+    logger.gemini.response(buffer.length);
 
     return {
       buffer,
@@ -92,6 +93,7 @@ export class GeminiAdapter implements IImageGenerationAdapter {
 
   closeSession(sessionId: string): void {
     this.messageCounters.delete(sessionId);
+    logger.gemini.session.closed(sessionId);
   }
 
   getMessageIndex(sessionId: string): number {

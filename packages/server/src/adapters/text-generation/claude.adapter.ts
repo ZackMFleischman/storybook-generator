@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { TextGenOptions, TextGenerationResponse, TextModelInfo } from '@storybook-generator/shared';
 import { ITextGenerationAdapter } from './text-generation.interface.js';
 import { getCacheKey, getTextCache, setTextCache } from '../../cache/index.js';
+import { logger } from '../../utils/logger.js';
 
 export class ClaudeAdapter implements ITextGenerationAdapter {
   private client: Anthropic;
@@ -22,37 +23,47 @@ export class ClaudeAdapter implements ITextGenerationAdapter {
     if (!options?.skipCache) {
       const cached = await getTextCache(cacheKey);
       if (cached) {
+        logger.claude.cached();
         const parsed = JSON.parse(cached) as TextGenerationResponse;
         return parsed;
       }
     }
 
-    const response = await this.client.messages.create({
-      model: this.modelId,
-      max_tokens: options?.maxTokens ?? 4096,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: userPrompt }
-      ],
-    });
+    logger.claude.request(userPrompt.slice(0, 100), { maxTokens: options?.maxTokens ?? 4096 });
 
-    const textContent = response.content.find(c => c.type === 'text');
-    const text = textContent?.type === 'text' ? textContent.text : '';
+    try {
+      const response = await this.client.messages.create({
+        model: this.modelId,
+        max_tokens: options?.maxTokens ?? 4096,
+        system: systemPrompt,
+        messages: [
+          { role: 'user', content: userPrompt }
+        ],
+      });
 
-    const result: TextGenerationResponse = {
-      text,
-      usage: {
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      },
-      stopReason: response.stop_reason === 'end_turn' ? 'end_turn' :
-                  response.stop_reason === 'max_tokens' ? 'max_tokens' : 'end_turn',
-    };
+      const textContent = response.content.find(c => c.type === 'text');
+      const text = textContent?.type === 'text' ? textContent.text : '';
 
-    // Store in cache
-    await setTextCache(cacheKey, JSON.stringify(result));
+      logger.claude.response(response.usage.input_tokens, response.usage.output_tokens);
 
-    return result;
+      const result: TextGenerationResponse = {
+        text,
+        usage: {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        },
+        stopReason: response.stop_reason === 'end_turn' ? 'end_turn' :
+                    response.stop_reason === 'max_tokens' ? 'max_tokens' : 'end_turn',
+      };
+
+      // Store in cache
+      await setTextCache(cacheKey, JSON.stringify(result));
+
+      return result;
+    } catch (error) {
+      logger.claude.error(String(error));
+      throw error;
+    }
   }
 
   async generateStructured<T>(

@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite';
 import styled from '@emotion/styled';
 import { useProjectStore, useUIStore } from '../stores/RootStore';
 import type { ProjectSummary } from '@storybook-generator/shared';
+import { getImageUrl } from '../api/client';
 
 const Overlay = styled.div<{ isOpen: boolean }>`
   position: fixed;
@@ -18,7 +19,7 @@ const Drawer = styled.aside<{ isOpen: boolean }>`
   top: 0;
   left: 0;
   height: 100vh;
-  width: 320px;
+  width: 400px;
   background: var(--surface-color);
   box-shadow: var(--shadow-lg);
   transform: translateX(${props => props.isOpen ? '0' : '-100%'});
@@ -88,10 +89,13 @@ const ProjectList = styled.div`
 `;
 
 const ProjectItem = styled.div<{ isActive: boolean }>`
-  padding: 1rem 1.5rem;
+  padding: 1rem;
   cursor: pointer;
   border-left: 3px solid ${props => props.isActive ? 'var(--primary-color)' : 'transparent'};
   background: ${props => props.isActive ? 'var(--background-color)' : 'transparent'};
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 
   &:hover {
     background: var(--background-color);
@@ -102,10 +106,49 @@ const ProjectItem = styled.div<{ isActive: boolean }>`
   }
 `;
 
+const ProjectThumbnail = styled.div`
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  flex-shrink: 0;
+  background: var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const ThumbnailImage = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--surface-color);
+`;
+
+const ThumbnailPlaceholder = styled.div`
+  font-size: 2.5rem;
+  color: var(--text-secondary);
+  opacity: 0.5;
+`;
+
+const ProjectInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
 const ProjectName = styled.div`
   font-weight: 500;
   color: var(--text-primary);
-  margin-bottom: 0.25rem;
+  line-height: 1.3;
+`;
+
+const ProjectFooter = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 `;
 
 const ProjectMeta = styled.div`
@@ -113,7 +156,7 @@ const ProjectMeta = styled.div`
   color: var(--text-secondary);
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
 `;
 
 const StageBadge = styled.span<{ stage: string }>`
@@ -140,20 +183,13 @@ const DeleteButton = styled.button`
   color: var(--text-secondary);
   cursor: pointer;
   padding: 0.25rem;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   opacity: 0;
   transition: opacity 0.15s;
 
   &:hover {
     color: var(--error-color);
   }
-`;
-
-const ProjectActions = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 0.5rem;
 `;
 
 const EmptyState = styled.div`
@@ -175,6 +211,16 @@ function formatDate(dateStr: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
+}
+
+function getThumbnailUrl(project: ProjectSummary): string | null {
+  if (project.hasCoverImage) {
+    return getImageUrl(project.id, 'cover', 'front');
+  }
+  if (project.hasPageImages && project.firstPageNumber !== undefined) {
+    return getImageUrl(project.id, 'pages', String(project.firstPageNumber));
+  }
+  return null;
 }
 
 export const ProjectSidebar = observer(function ProjectSidebar() {
@@ -221,27 +267,38 @@ export const ProjectSidebar = observer(function ProjectSidebar() {
               Create your first storybook!
             </EmptyState>
           ) : (
-            projectStore.projectList.map(project => (
-              <ProjectItem
-                key={project.id}
-                isActive={projectStore.currentProject?.id === project.id}
-                onClick={() => handleSelectProject(project)}
-              >
-                <ProjectName>{project.name}</ProjectName>
-                <ProjectMeta>
-                  <span>{formatDate(project.updatedAt)}</span>
-                  <StageBadge stage={project.currentStage}>
-                    {project.currentStage}
-                  </StageBadge>
-                </ProjectMeta>
-                <ProjectActions>
-                  <span></span>
-                  <DeleteButton className="delete-btn" onClick={(e) => handleDeleteProject(e, project.id)}>
-                    Delete
-                  </DeleteButton>
-                </ProjectActions>
-              </ProjectItem>
-            ))
+            projectStore.projectList.map(project => {
+              const thumbnailUrl = getThumbnailUrl(project);
+              return (
+                <ProjectItem
+                  key={project.id}
+                  isActive={projectStore.currentProject?.id === project.id}
+                  onClick={() => handleSelectProject(project)}
+                >
+                  <ProjectThumbnail>
+                    {thumbnailUrl ? (
+                      <ThumbnailImage src={thumbnailUrl} alt="" />
+                    ) : (
+                      <ThumbnailPlaceholder>&#128214;</ThumbnailPlaceholder>
+                    )}
+                  </ProjectThumbnail>
+                  <ProjectInfo>
+                    <ProjectName>{project.title || project.name}</ProjectName>
+                    <ProjectFooter>
+                      <ProjectMeta>
+                        <span>{formatDate(project.updatedAt)}</span>
+                        <StageBadge stage={project.currentStage}>
+                          {project.currentStage}
+                        </StageBadge>
+                      </ProjectMeta>
+                      <DeleteButton className="delete-btn" onClick={(e) => handleDeleteProject(e, project.id)}>
+                        Delete
+                      </DeleteButton>
+                    </ProjectFooter>
+                  </ProjectInfo>
+                </ProjectItem>
+              );
+            })
           )}
         </ProjectList>
       </Drawer>

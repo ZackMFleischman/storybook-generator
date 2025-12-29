@@ -127,6 +127,11 @@ export class ProjectStore {
 
   setCurrentProject(project: Project | null): void {
     this.currentProject = project;
+    if (project) {
+      this.saveLastProjectId(project.id);
+    } else {
+      this.clearLastProjectId();
+    }
   }
 
   updateCurrentProject(updates: Partial<Project>): void {

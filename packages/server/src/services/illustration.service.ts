@@ -2,6 +2,7 @@ import { PageImage, GeneratePageRequest, GenerateAllPagesRequest, ReferenceImage
 import { IImageGenerationAdapter } from '../adapters/image-generation/index.js';
 import { IStorageAdapter } from '../adapters/storage/index.js';
 import { getIllustrationPrompt, getCoverPrompt, getBackCoverPrompt, getIllustrationRefinePrompt } from '../prompts/index.js';
+import { logger } from '../utils/logger.js';
 
 export class IllustrationService {
   constructor(
@@ -177,7 +178,8 @@ export class IllustrationService {
 
   async generateAllPages(
     request: GenerateAllPagesRequest,
-    onProgress?: (current: number, total: number, message: string) => void
+    onProgress?: (current: number, total: number, message: string) => void,
+    onImageComplete?: (image: PageImage, imageType: 'cover' | 'page' | 'back-cover') => void
   ): Promise<PageImage[]> {
     const { projectId, additionalPrompt } = request;
 
@@ -197,18 +199,25 @@ export class IllustrationService {
     const pageImages: PageImage[] = [];
     let currentStep = 0;
 
+    logger.illustration.startBatch(totalSteps);
+
     // Create session for this generation run (Phase 2)
     const sessionId = await this.imageAdapter.createSession(projectId);
 
     try {
       // Step 1: Generate front cover FIRST (establishes style in session)
       currentStep++;
+      logger.illustration.generating('front cover');
       onProgress?.(currentStep, totalSteps, 'Generating front cover...');
       const coverImage = await this.generateCoverWithSession(projectId, sessionId);
+      logger.illustration.generated('front cover');
 
       // Update project with cover
       project.coverImage = coverImage;
       await this.storage.saveProject(project);
+
+      // Notify that cover is complete
+      onImageComplete?.(coverImage, 'cover');
 
       // Steps 2 to N+1: Generate content pages SEQUENTIALLY
       // Pass up to 3 previous pages as reference images for visual consistency
@@ -255,6 +264,7 @@ export class IllustrationService {
           }
         }
 
+        logger.illustration.generating('page', page.pageNumber);
         const pageImage = await this.generatePageWithSession(
           projectId,
           sessionId,
@@ -262,6 +272,7 @@ export class IllustrationService {
           referenceImages,
           additionalPrompt
         );
+        logger.illustration.generated('page', page.pageNumber);
 
         pageImages.push(pageImage);
 
@@ -276,18 +287,27 @@ export class IllustrationService {
         project.currentStage = 'illustrations';
         project.updatedAt = new Date().toISOString();
         await this.storage.saveProject(project);
+
+        // Notify that page is complete
+        onImageComplete?.(pageImage, 'page');
       }
 
       // Final step: Generate back cover
       currentStep++;
+      logger.illustration.generating('back cover');
       onProgress?.(currentStep, totalSteps, 'Generating back cover...');
       const backCoverImage = await this.generateBackCoverWithSession(projectId, sessionId);
+      logger.illustration.generated('back cover');
 
       // Update project with back cover
       project.backCoverImage = backCoverImage;
       project.updatedAt = new Date().toISOString();
       await this.storage.saveProject(project);
 
+      // Notify that back cover is complete
+      onImageComplete?.(backCoverImage, 'back-cover');
+
+      logger.illustration.complete(totalSteps);
       return pageImages;
     } finally {
       // Clean up session

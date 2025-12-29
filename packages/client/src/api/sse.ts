@@ -4,17 +4,20 @@
 
 const API_BASE = '/api';
 
-export interface ProgressEvent<T = unknown> {
-  type: 'progress' | 'complete' | 'error';
+export interface ProgressEvent<T = unknown, I = unknown> {
+  type: 'progress' | 'imageComplete' | 'complete' | 'error';
   current?: number;
   total?: number;
   message?: string;
+  image?: I;           // Completed image data (for imageComplete events)
+  imageType?: 'cover' | 'page' | 'back-cover';  // Type of image completed
   data?: T;
   error?: string;
 }
 
-export interface ProgressCallbacks<T> {
+export interface ProgressCallbacks<T, I = unknown> {
   onProgress?: (current: number, total: number, message: string) => void;
+  onImageComplete?: (image: I, imageType: 'cover' | 'page' | 'back-cover') => void;
   onComplete?: (data: T) => void;
   onError?: (error: string) => void;
 }
@@ -27,10 +30,10 @@ export interface ProgressCallbacks<T> {
  * @param callbacks - Progress, complete, and error callbacks
  * @returns Promise resolving to the complete data
  */
-export async function fetchWithProgress<T>(
+export async function fetchWithProgress<T, I = unknown>(
   endpoint: string,
   body: unknown,
-  callbacks: ProgressCallbacks<T>
+  callbacks: ProgressCallbacks<T, I>
 ): Promise<T> {
   const response = await fetch(`${API_BASE}${endpoint}`, {
     method: 'POST',
@@ -72,13 +75,21 @@ export async function fetchWithProgress<T>(
 
           if (event.type === 'progress') {
             if (event.current !== undefined && event.total !== undefined && event.message) {
+              console.log(`[SSE] Progress: ${event.current}/${event.total} - ${event.message}`);
               callbacks.onProgress?.(event.current, event.total, event.message);
             }
+          } else if (event.type === 'imageComplete') {
+            if (event.image && event.imageType) {
+              console.log(`[SSE] Image complete: ${event.imageType}`, event.image);
+              callbacks.onImageComplete?.(event.image as I, event.imageType);
+            }
           } else if (event.type === 'complete') {
+            console.log('[SSE] Generation complete');
             result = event.data as T;
             callbacks.onComplete?.(result);
           } else if (event.type === 'error') {
             const errorMessage = event.error || 'Unknown error';
+            console.error('[SSE] Error:', errorMessage);
             callbacks.onError?.(errorMessage);
             throw new Error(errorMessage);
           }

@@ -2,6 +2,7 @@ import { Outline, GenerateOutlineRequest, RefineOutlineRequest } from '@storyboo
 import { ITextGenerationAdapter } from '../adapters/text-generation/index.js';
 import { IStorageAdapter } from '../adapters/storage/index.js';
 import { getOutlineSystemPrompt, getOutlineUserPrompt, getOutlineRefinePrompt } from '../prompts/index.js';
+import { logger } from '../utils/logger.js';
 
 export class OutlineService {
   constructor(
@@ -11,6 +12,8 @@ export class OutlineService {
 
   async generateOutline(request: GenerateOutlineRequest): Promise<Outline> {
     const { projectId, topic, targetAge, pageCount, toneKeywords, additionalInstructions } = request;
+
+    logger.outline.generating(topic, pageCount);
 
     // Load project to verify it exists
     const project = await this.storage.loadProject(projectId);
@@ -29,6 +32,8 @@ export class OutlineService {
       { maxTokens: 4096, temperature: 0.8 }
     );
 
+    logger.outline.generated(outline.title);
+
     // Update project with the new outline
     project.outline = outline;
     project.currentStage = 'outline';
@@ -40,6 +45,8 @@ export class OutlineService {
 
   async refineOutline(request: RefineOutlineRequest): Promise<Outline> {
     const { projectId, feedback } = request;
+
+    logger.outline.refining();
 
     // Load project to get existing outline
     const project = await this.storage.loadProject(projectId);
@@ -61,6 +68,8 @@ export class OutlineService {
       userPrompt,
       { maxTokens: 4096, temperature: 0.7 }
     );
+
+    logger.outline.refined();
 
     // Update project with the refined outline
     project.outline = refinedOutline;

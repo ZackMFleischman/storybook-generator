@@ -176,7 +176,7 @@ export class EditStore {
 
   // Apply feedback and regenerate
   async applyOutlineFeedback(): Promise<boolean> {
-    const { projectStore } = this.rootStore;
+    const { projectStore, generationStore } = this.rootStore;
     const project = projectStore.currentProject;
 
     if (!project || !this.hasOutlineFeedback) {
@@ -185,6 +185,7 @@ export class EditStore {
 
     this.isRefining = true;
     this.refineError = null;
+    generationStore.startTask('Refining outline...');
 
     try {
       const feedback = {
@@ -209,6 +210,7 @@ export class EditStore {
         projectStore.updateCurrentProject({ outline });
         this.clearOutlineFeedback();
         this.isRefining = false;
+        generationStore.completeTask();
       });
 
       return true;
@@ -216,13 +218,14 @@ export class EditStore {
       runInAction(() => {
         this.refineError = String(error);
         this.isRefining = false;
+        generationStore.failTask(String(error));
       });
       return false;
     }
   }
 
   async applyManuscriptFeedback(): Promise<boolean> {
-    const { projectStore } = this.rootStore;
+    const { projectStore, generationStore } = this.rootStore;
     const project = projectStore.currentProject;
 
     if (!project || !this.hasManuscriptFeedback) {
@@ -231,6 +234,7 @@ export class EditStore {
 
     this.isRefining = true;
     this.refineError = null;
+    generationStore.startTask('Refining manuscript...');
 
     try {
       const feedback = {
@@ -247,6 +251,7 @@ export class EditStore {
         projectStore.updateCurrentProject({ manuscript });
         this.clearManuscriptFeedback();
         this.isRefining = false;
+        generationStore.completeTask();
       });
 
       return true;
@@ -254,6 +259,7 @@ export class EditStore {
       runInAction(() => {
         this.refineError = String(error);
         this.isRefining = false;
+        generationStore.failTask(String(error));
       });
       return false;
     }
@@ -300,7 +306,7 @@ export class EditStore {
 
   // Apply a single illustration refinement
   async applySingleIllustrationFeedback(target: 'cover' | 'back-cover' | number): Promise<boolean> {
-    const { projectStore } = this.rootStore;
+    const { projectStore, generationStore } = this.rootStore;
     const project = projectStore.currentProject;
 
     if (!project) {
@@ -308,12 +314,16 @@ export class EditStore {
     }
 
     let feedback: string | undefined;
+    let taskName: string;
     if (target === 'cover') {
       feedback = this.illustrationFeedback.cover;
+      taskName = 'Regenerating cover...';
     } else if (target === 'back-cover') {
       feedback = this.illustrationFeedback.backCover;
+      taskName = 'Regenerating back cover...';
     } else {
       feedback = this.illustrationFeedback.pages.get(target);
+      taskName = `Regenerating page ${target}...`;
     }
 
     if (!feedback) {
@@ -322,6 +332,7 @@ export class EditStore {
 
     this.isRefining = true;
     this.refineError = null;
+    generationStore.startTask(taskName);
 
     try {
       const result = await api.refineIllustration({
@@ -352,6 +363,7 @@ export class EditStore {
           this.illustrationFeedback.pages.delete(target);
         }
         this.isRefining = false;
+        generationStore.completeTask();
       });
 
       return true;
@@ -359,6 +371,7 @@ export class EditStore {
       runInAction(() => {
         this.refineError = String(error);
         this.isRefining = false;
+        generationStore.failTask(String(error));
       });
       return false;
     }
@@ -366,7 +379,7 @@ export class EditStore {
 
   // Apply all illustration feedback at once
   async applyAllIllustrationFeedback(): Promise<boolean> {
-    const { projectStore } = this.rootStore;
+    const { projectStore, generationStore } = this.rootStore;
     const project = projectStore.currentProject;
 
     if (!project || !this.hasIllustrationFeedback) {
@@ -375,6 +388,7 @@ export class EditStore {
 
     this.isRefining = true;
     this.refineError = null;
+    generationStore.startTask(`Regenerating ${this.illustrationFeedbackCount} illustration${this.illustrationFeedbackCount !== 1 ? 's' : ''}...`);
 
     try {
       const feedback = {
@@ -416,6 +430,7 @@ export class EditStore {
 
         this.clearIllustrationFeedback();
         this.isRefining = false;
+        generationStore.completeTask();
       });
 
       return true;
@@ -423,6 +438,7 @@ export class EditStore {
       runInAction(() => {
         this.refineError = String(error);
         this.isRefining = false;
+        generationStore.failTask(String(error));
       });
       return false;
     }

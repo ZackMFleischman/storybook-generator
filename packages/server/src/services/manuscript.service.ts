@@ -2,6 +2,7 @@ import { Manuscript, GenerateManuscriptRequest, RefineManuscriptRequest } from '
 import { ITextGenerationAdapter } from '../adapters/text-generation/index.js';
 import { IStorageAdapter } from '../adapters/storage/index.js';
 import { getManuscriptSystemPrompt, getManuscriptUserPrompt, getManuscriptRefinePrompt } from '../prompts/index.js';
+import { logger } from '../utils/logger.js';
 
 export class ManuscriptService {
   constructor(
@@ -18,6 +19,8 @@ export class ManuscriptService {
     if (!project.outline) {
       throw new Error('Cannot generate manuscript: outline not found');
     }
+
+    logger.manuscript.generating(project.settings.targetPageCount);
 
     const targetWordsPerPage = wordsPerPage ?? (project.settings.targetAge === '3-5' ? 20 : 40);
 
@@ -36,6 +39,8 @@ export class ManuscriptService {
       { maxTokens: 8192, temperature: 0.7 }
     );
 
+    logger.manuscript.generated();
+
     // Update project with the new manuscript
     project.manuscript = manuscript;
     project.currentStage = 'manuscript';
@@ -47,6 +52,8 @@ export class ManuscriptService {
 
   async refineManuscript(request: RefineManuscriptRequest): Promise<Manuscript> {
     const { projectId, feedback } = request;
+
+    logger.manuscript.refining();
 
     // Load project
     const project = await this.storage.loadProject(projectId);
@@ -75,6 +82,8 @@ export class ManuscriptService {
       userPrompt,
       { maxTokens: 8192, temperature: 0.7 }
     );
+
+    logger.manuscript.refined();
 
     // Update project with the refined manuscript
     project.manuscript = refinedManuscript;

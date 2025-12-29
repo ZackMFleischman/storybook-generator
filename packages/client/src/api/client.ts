@@ -34,6 +34,11 @@ async function request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     throw new Error(error.message || `Request failed: ${response.status}`);
   }
 
+  // Handle 204 No Content responses
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json();
 }
 
@@ -105,9 +110,13 @@ export async function generateAllPages(data: GenerateAllPagesRequest): Promise<P
 
 export async function generateAllPagesWithProgress(
   data: GenerateAllPagesRequest,
-  onProgress: (current: number, total: number, message: string) => void
+  onProgress: (current: number, total: number, message: string) => void,
+  onImageComplete?: (image: PageImage, imageType: 'cover' | 'page' | 'back-cover') => void
 ): Promise<PageImage[]> {
-  return fetchWithProgress<PageImage[]>('/generate/all-pages', data, { onProgress });
+  return fetchWithProgress<PageImage[], PageImage>('/generate/all-pages', data, {
+    onProgress,
+    onImageComplete,
+  });
 }
 
 export async function generatePage(
