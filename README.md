@@ -15,7 +15,7 @@ A web application that generates illustrated children's picture books from a sim
 
 - **Project Management**: Sidebar drawer to create, load, and switch between projects
 - **Resume Progress**: Automatically returns to where you left off when loading a project
-- **Iterative Editing**: Provide feedback on any section and regenerate with changes
+- **Dual-Mode Editing**: Edit content directly (manual edit) or provide AI suggestions for regeneration
 - **Cover Generation**: Automatic front cover (with title) and back cover (with blurb) generation
 - **AI Response Caching**: Global cache avoids repeated API calls for identical prompts
 - **Age-Appropriate Content**: Supports ages 3-5 (simple vocabulary) and 5-8 (more complex narrative)
@@ -276,14 +276,26 @@ const projectStore = useProjectStore();
 const editStore = useEditStore();
 ```
 
-### Iterative Editing Flow
+### Editing Flow
 
-1. User hovers over a section (character, plot point, page) and clicks "Edit"
-2. User enters feedback describing desired changes
-3. Feedback is stored in `EditStore` (can accumulate multiple edits)
-4. User clicks "Apply Changes" which calls refine endpoint
-5. AI regenerates content incorporating all feedback
-6. Updated content replaces previous version
+The app supports two editing modes for any editable section:
+
+#### Manual Edit Mode
+1. User hovers over a section and clicks "Edit"
+2. Toggle is set to "Manual Edit" (default)
+3. User directly edits the text content
+4. User clicks "Save Changes" → saved to server immediately
+5. No AI involvement - changes are applied as-is
+
+#### AI Suggestions Mode
+1. User hovers over a section and clicks "Edit"
+2. User switches toggle to "AI Suggestions"
+3. User describes desired changes in natural language
+4. User clicks "Save Feedback" → feedback queued in `EditStore`
+5. Floating bar appears showing pending AI edits count
+6. User can accumulate multiple AI suggestions across sections
+7. User clicks "Apply Changes" → AI regenerates content incorporating all feedback
+8. Updated content replaces previous version
 
 ## Prompt Engineering
 

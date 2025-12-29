@@ -4,120 +4,48 @@
 
 This plan covers three major feature enhancements to the storybook generator:
 
-1. **Direct Text Editing** - Allow manual editing of text content in addition to AI-powered suggestions
+1. **Direct Text Editing** - Allow manual editing of text content in addition to AI-powered suggestions - **COMPLETED**
 2. **Illustration Feedback & Iteration** - Add feedback/refinement support to the illustrations page
 3. **Art Style & Character Reference Images** - Define art style early and generate character reference images
 
 ---
 
-## Feature 1: Direct Text Editing
+## Feature 1: Direct Text Editing - COMPLETED
 
-### Current State
-- Users can only provide AI suggestions via the `EditableSection` component
-- Feedback is accumulated and then batch-applied via AI regeneration
-- No way to directly modify text content without AI involvement
+### Implementation Summary
 
-### Proposed Changes
+Dual-mode editing has been implemented in the `EditableSection` component, allowing users to either:
+- **Manual Edit**: Directly edit text content and save immediately to the server
+- **AI Suggestions**: Describe desired changes for AI-powered regeneration
 
-#### 1.1 Update EditableSection Component
+### What Was Implemented
+
+#### EditableSection Component
 **File:** `packages/client/src/components/EditableSection.tsx`
 
-Add a new "edit mode" that shows the actual content as editable text:
+- Added toggle between "Manual Edit" and "AI Suggestions" modes
+- Manual Edit mode shows content in an editable input/textarea
+- Clicking "Save Changes" in Manual Edit mode saves immediately to server
+- AI Suggestions mode works as before (queue feedback, apply via floating bar)
+- New props: `editableContent`, `onContentChange`, `contentType`
 
-```typescript
-interface EditableSectionProps {
-  children: React.ReactNode;
-  sectionLabel: string;
-  feedback?: string;
-  onFeedbackChange: (feedback: string) => void;
-  // NEW PROPS:
-  editableContent?: string;           // The actual text content to edit
-  onContentChange?: (content: string) => void;  // Callback for direct edits
-  contentType?: 'text' | 'textarea';  // Single line or multi-line
-}
-```
-
-**UI Changes:**
-- Add toggle between "AI Suggestions" mode and "Manual Edit" mode
-- In Manual Edit mode, show the content in an editable input/textarea
-- Save button applies direct changes immediately (no AI call)
-- Both modes can coexist - user can manually edit AND add AI suggestions
-
-**Implementation Steps:**
-1. Add `editMode: 'ai' | 'manual'` state to track which editing mode is active
-2. Add a segmented control/tabs to switch between modes
-3. In manual mode, render content as editable field
-4. On save in manual mode, call `onContentChange` directly
-5. Style manual edit mode distinctly (different background color)
-
-#### 1.2 Update OutlineView Component
-**File:** `packages/client/src/components/OutlineView.tsx`
-
-For each editable section, pass the actual content and a direct update handler:
-
-| Section | Editable Fields |
-|---------|-----------------|
-| Title | `outline.title`, `outline.subtitle` |
-| Synopsis | `outline.synopsis` |
-| Theme | `outline.theme` |
-| Cover Description | `outline.coverDescription` |
-| Back Cover Description | `outline.backCoverDescription` |
-| Back Cover Blurb | `outline.backCoverBlurb` |
-| Setting | `setting.location`, `setting.timePeriod`, `setting.atmosphere` |
-| Characters | `character.name`, `character.description`, `character.physicalDescription` |
-| Plot Points | `plotPoint.title`, `plotPoint.description` |
-
-**Implementation Steps:**
-1. Create handlers for direct content updates (e.g., `handleTitleChange`, `handleSynopsisChange`)
-2. These handlers update the project store directly without API calls
-3. Pass both feedback handler AND content handler to each EditableSection
-4. Mark project as "dirty" when manual edits are made
-
-#### 1.3 Update ManuscriptView Component
-**File:** `packages/client/src/components/ManuscriptView.tsx`
-
-For each page, allow direct editing of:
-- `page.text` - The story text
-- `page.illustrationDescription` - The illustration prompt
-- `page.mood` - Emotional tone
-- `page.action` - What's happening
-
-**Implementation Steps:**
-1. Create handlers for page content updates
-2. Pass content handlers to EditableSection for each field
-3. Allow editing illustration descriptions (useful for fine-tuning image prompts)
-
-#### 1.4 Update ProjectStore
+#### ProjectStore
 **File:** `packages/client/src/stores/ProjectStore.ts`
 
-Add methods for direct content updates:
+Added methods that update and immediately save to server:
+- `updateOutlineField()` - Update any outline field (title, synopsis, etc.)
+- `updateCharacter()` - Update a specific character
+- `updatePlotPoint()` - Update a specific plot point
+- `updateSetting()` - Update setting fields
+- `updateManuscriptPage()` - Update a manuscript page
+- `saveProject()` - Persist changes via `PUT /api/projects/:id`
 
-```typescript
-class ProjectStore {
-  // NEW: Direct outline field updates
-  updateOutlineField(field: keyof Outline, value: any): void;
-  updateCharacter(characterId: string, updates: Partial<Character>): void;
-  updatePlotPoint(plotPointId: string, updates: Partial<PlotPoint>): void;
-  updateSetting(updates: Partial<Setting>): void;
+#### OutlineView & ManuscriptView
+**Files:** `packages/client/src/components/OutlineView.tsx`, `ManuscriptView.tsx`
 
-  // NEW: Direct manuscript page updates
-  updateManuscriptPage(pageNumber: number, updates: Partial<ManuscriptPage>): void;
-
-  // NEW: Save changes to server
-  saveProject(): Promise<void>;
-}
-```
-
-**Implementation Steps:**
-1. Add MobX actions for each update type
-2. Implement `saveProject()` that calls `PUT /api/projects/:id`
-3. Track dirty state to show "unsaved changes" indicator
-4. Auto-save on navigation or with debouncing
-
-#### 1.5 API Updates
-**File:** `packages/server/src/routes/projects.ts`
-
-The existing `PUT /api/projects/:id` endpoint should already support full project updates. Verify it handles partial updates correctly.
+- Each EditableSection now receives `editableContent` and `onContentChange` props
+- Editable fields: title, synopsis, cover descriptions, character descriptions, plot point descriptions, setting location, page text
+- Floating bar only appears for AI suggestions (manual edits save immediately)
 
 ---
 
@@ -736,12 +664,12 @@ Ensure each character matches their reference image exactly in terms of:
 
 ## Implementation Order
 
-### Phase 1: Direct Text Editing (Lowest Risk)
-1. Update EditableSection component with dual-mode editing
-2. Update ProjectStore with direct update methods
-3. Update OutlineView to use direct editing
-4. Update ManuscriptView to use direct editing
-5. Test manual editing workflow
+### Phase 1: Direct Text Editing - COMPLETED
+1. ~~Update EditableSection component with dual-mode editing~~
+2. ~~Update ProjectStore with direct update methods~~
+3. ~~Update OutlineView to use direct editing~~
+4. ~~Update ManuscriptView to use direct editing~~
+5. ~~Test manual editing workflow~~
 
 ### Phase 2: Illustration Feedback (Medium Complexity)
 1. Add IllustrationFeedback to EditStore
@@ -766,12 +694,11 @@ Ensure each character matches their reference image exactly in terms of:
 
 ## Testing Checklist
 
-### Direct Text Editing
-- [ ] Can switch between AI suggestion and manual edit modes
-- [ ] Manual edits save immediately without API call
-- [ ] Dirty state tracked and shown to user
-- [ ] Can combine manual edits with AI suggestions
-- [ ] Navigation prompts to save unsaved changes
+### Direct Text Editing - COMPLETED
+- [x] Can switch between AI suggestion and manual edit modes
+- [x] Manual edits save immediately to server
+- [x] Can use AI suggestions independently (floating bar appears)
+- [x] Both modes available on all editable sections
 
 ### Illustration Feedback
 - [ ] Can provide feedback on individual page illustrations
@@ -795,23 +722,23 @@ Ensure each character matches their reference image exactly in terms of:
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `client/src/components/EditableSection.tsx` | Add dual-mode editing |
-| `client/src/components/TopicInput.tsx` | Add art style selection |
-| `client/src/components/OutlineView.tsx` | Direct editing + character images |
-| `client/src/components/ManuscriptView.tsx` | Direct editing |
-| `client/src/components/IllustrationsExport.tsx` | Add feedback/iteration |
-| `client/src/stores/EditStore.ts` | Add illustration feedback |
-| `client/src/stores/ProjectStore.ts` | Add direct update methods |
-| `client/src/api/client.ts` | Add new API functions |
-| `server/src/routes/generation.ts` | Add new endpoints |
-| `server/src/services/outline.service.ts` | Add character image generation |
-| `server/src/services/illustration.service.ts` | Add refinement methods |
-| `server/src/prompts/illustration.prompts.ts` | Add refinement + character prompts |
-| `shared/src/types/generation.ts` | Add new types |
-| `shared/src/types/outline.ts` | Add CharacterImage type |
-| `shared/src/types/project.ts` | Add characterImages to Project |
+| File | Changes | Status |
+|------|---------|--------|
+| `client/src/components/EditableSection.tsx` | Add dual-mode editing | DONE |
+| `client/src/components/TopicInput.tsx` | Add art style selection | |
+| `client/src/components/OutlineView.tsx` | Direct editing + character images | DONE (direct editing) |
+| `client/src/components/ManuscriptView.tsx` | Direct editing | DONE |
+| `client/src/components/IllustrationsExport.tsx` | Add feedback/iteration | |
+| `client/src/stores/EditStore.ts` | Add illustration feedback | |
+| `client/src/stores/ProjectStore.ts` | Add direct update methods | DONE |
+| `client/src/api/client.ts` | Add new API functions | |
+| `server/src/routes/generation.ts` | Add new endpoints | |
+| `server/src/services/outline.service.ts` | Add character image generation | |
+| `server/src/services/illustration.service.ts` | Add refinement methods | |
+| `server/src/prompts/illustration.prompts.ts` | Add refinement + character prompts | |
+| `shared/src/types/generation.ts` | Add new types | |
+| `shared/src/types/outline.ts` | Add CharacterImage type | |
+| `shared/src/types/project.ts` | Add characterImages to Project | |
 
 ## New Files
 
